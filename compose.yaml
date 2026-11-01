@@ -1,0 +1,197 @@
+name: private-ai-workspace
+x-app: &app
+  image: private-ai-workspace-backend:dev
+  build: ./backend
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ['/tmp:size=64m,mode=1777']
+  pids_limit: 100
+  mem_limit: 512m
+  cpus: 1.0
+  networks: [data]
+  environment: &app-env
+    DB_HOST: db
+    DB_NAME: workspace
+    DB_USER: workspace_app
+    DB_PASSWORD_FILE: /run/secrets/db_app_password
+services:
+  db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: workspace
+      POSTGRES_USER: workspace_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets: [db_admin_password, db_app_password, db_migration_password]
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./deploy/init-db.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    networks: [data]
+    shm_size: 128m
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 150
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U workspace_admin -d workspace']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  migrate:
+    <<: *app
+    environment:
+      <<: *app-env
+      DB_USER: workspace_migration
+      DB_PASSWORD_FILE: /run/secrets/db_migration_password
+    secrets: [db_migration_password]
+    command: [alembic, upgrade, head]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: 'no'
+  backend:
+    <<: *app
+    volumes: [document_data:/data/documents]
+    networks: [data, ingress, ingestion, ai_control]
+    secrets: [db_app_password, ingestion_key, orchestrator_key]
+    environment:
+      <<: *app-env
+      ORCHESTRATOR_KEY_FILE: /run/secrets/orchestrator_key
+      INGESTION_KEY_FILE: /run/secrets/ingestion_key
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health/ready", timeout=4)']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  web:
+    image: private-ai-workspace-web:dev
+    build: ./frontend
+    ports: ['127.0.0.1:8080:8080']
+    networks: [ingress]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ['/tmp:size=64m,mode=1777']
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 100
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://127.0.0.1:8080/health/ready']
+      interval: 10s
+      timeout: 3s
+      retries: 6
+  parser:
+    image: private-ai-workspace-worker:dev
+    build: ./workers
+    networks: [parser]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    healthcheck:
+      test: [CMD, python, -c, 'import socket; socket.create_connection(("127.0.0.1",8090),timeout=2).close()']
+      interval: 10s
+      timeout: 3s
+      retries: 6
+  indexer:
+    image: private-ai-workspace-worker:dev
+    build: ./workers
+    command: [python, controller.py]
+    environment:
+      INGESTION_KEY_FILE: /run/secrets/ingestion_key
+    secrets: [ingestion_key]
+    networks: [ingestion, parser]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    depends_on:
+      backend: {condition: service_healthy}
+      parser: {condition: service_healthy}
+  orchestrator:
+    image: private-ai-workspace-orchestrator:dev
+    build: ./orchestrator
+    environment:
+      ORCHESTRATOR_KEY_FILE: /run/secrets/orchestrator_key
+    secrets: [orchestrator_key]
+    networks: [ai_control, inference]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    depends_on:
+      backend: {condition: service_healthy}
+  test-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    profiles: [test]
+    environment:
+      POSTGRES_DB: workspace_test
+      POSTGRES_USER: workspace_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets: [db_admin_password, db_app_password, db_migration_password]
+    volumes:
+      - ./deploy/init-db.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    tmpfs: ['/var/lib/postgresql/data:size=256m']
+    networks: [data]
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U workspace_admin -d workspace_test']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  test-migrate:
+    <<: *app
+    profiles: [test]
+    environment:
+      <<: *app-env
+      DB_HOST: test-db
+      DB_NAME: workspace_test
+      DB_USER: workspace_migration
+      DB_PASSWORD_FILE: /run/secrets/db_migration_password
+    secrets: [db_migration_password]
+    command: [alembic, upgrade, head]
+    depends_on:
+      test-db: {condition: service_healthy}
+  tests:
+    <<: *app
+    profiles: [test]
+    environment:
+      <<: *app-env
+      DB_HOST: test-db
+      DB_NAME: workspace_test
+      ORCHESTRATOR_KEY_FILE: /run/secrets/orchestrator_key
+      DOCUMENT_STORAGE: /tmp/test-documents
+      INGESTION_KEY_FILE: /run/secrets/ingestion_key
+    secrets: [db_app_password, ingestion_key, orchestrator_key]
+    command: [python, -m, pytest, -q]
+    depends_on:
+      test-migrate: {condition: service_completed_successfully}
+secrets:
+  orchestrator_key: {file: ./.secrets/orchestrator_key}
+  ingestion_key: {file: ./.secrets/ingestion_key}
+  db_admin_password: {file: ./.secrets/db_admin_password}
+  db_app_password: {file: ./.secrets/db_app_password}
+  db_migration_password: {file: ./.secrets/db_migration_password}
+volumes:
+  document_data:
+  db_data:
+networks:
+  ingress:
+  ai_control:
+    internal: true
+  inference:
+    internal: true
+  ingestion:
+    internal: true
+  parser:
+    internal: true
+  data:
+    internal: true

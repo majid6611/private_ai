@@ -1,0 +1,42 @@
+# Disposable restore verification only. Never points at the application DB/volumes.
+services:
+  restore-db:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    environment:
+      POSTGRES_DB: workspace_restore
+      POSTGRES_USER: workspace_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets: [db_admin_password, db_app_password, db_migration_password]
+    volumes: ['./deploy/init-db.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro']
+    tmpfs: ['/var/lib/postgresql/data:size=256m']
+    mem_limit: 512m
+    networks: [restore]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U workspace_admin -d workspace_restore']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  verify:
+    image: private-ai-workspace-backend:dev
+    command: [python, -m, app.verify_restore]
+    environment:
+      REQUIRE_POPULATED: ${REQUIRE_POPULATED:-0}
+      DB_HOST: restore-db
+      DB_NAME: workspace_restore
+      DB_USER: workspace_app
+      DB_PASSWORD_FILE: /run/secrets/db_app_password
+    secrets: [db_app_password]
+    volumes:
+      - ${BACKUP_DIRECTORY:?Set BACKUP_DIRECTORY to the protected snapshot directory}:/backup:ro
+    tmpfs: ['/tmp:size=256m,mode=1777']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    networks: [restore]
+secrets:
+  db_admin_password: {file: ./.secrets/db_admin_password}
+  db_app_password: {file: ./.secrets/db_app_password}
+  db_migration_password: {file: ./.secrets/db_migration_password}
+networks:
+  restore: {internal: true}
