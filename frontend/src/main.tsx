@@ -36,6 +36,30 @@ type SearchHit = {
   end_offset: number;
 };
 type Account = { id: string; username: string; enabled: boolean };
+type Member = { id: string; username: string };
+type AskSource = {
+  id: string;
+  document_id: string;
+  title: string;
+  version_id: string;
+  start_offset: number;
+  end_offset: number;
+};
+type AskTask = {
+  id: string;
+  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  answer: string | null;
+  error_code: string | null;
+  sources: AskSource[];
+};
+const ASK_ERRORS: Record<string, string> = {
+  MODEL_UNAVAILABLE:
+    "No AI model is available yet, so this question could not be answered. Search still works.",
+  INVALID_OUTPUT: "The model returned an unusable answer. Please try again.",
+  TASK_EXPIRED: "The question timed out before it was answered. Ask again.",
+  AUTHORIZATION_CHANGED:
+    "Your access or the documents changed while answering. Ask again.",
+};
 
 function App() {
   const [token, setToken] = useState("");
@@ -44,7 +68,8 @@ function App() {
   const [project, setProject] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searched, setSearched] = useState(false);
-  const grantUser = useRef<HTMLInputElement>(null);
+  const [ask, setAsk] = useState<AskTask | null>(null);
+  const grantUser = useRef<HTMLSelectElement>(null);
   const [docs, setDocs] = useState<Item[]>([]);
   const [doc, setDoc] = useState<Meta | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -53,7 +78,9 @@ function App() {
   const [text, setText] = useState("");
   const [loadedVersion, setLoadedVersion] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [message, setMessage] = useState("");
+  const [ok, setOk] = useState(false);
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
   const retryUpload = useRef<{ signature: string; key: string } | null>(null);
@@ -105,12 +132,19 @@ function App() {
     setProject("");
     setDocs([]);
     setAccounts([]);
+    setMembers([]);
     setHits([]);
     setSearched(false);
+    setAsk(null);
+  }
+  function success(text: string) {
+    setMessage(text);
+    setOk(true);
   }
   async function task(action: () => Promise<void>) {
     setBusy(true);
     setMessage("");
+    setOk(false);
     try {
       await action();
     } catch (e) {
@@ -123,7 +157,11 @@ function App() {
     setProjects(await api<Item[]>("/projects", {}, bearer));
   }
   async function refreshDocs(p = project) {
-    if (p) setDocs(await api<Item[]>("/documents?project_id=" + p));
+    if (!p) return;
+    setDocs(await api<Item[]>("/documents?project_id=" + p));
+    setMembers(
+      await api<Member[]>(`/projects/${p}/members`).catch(() => [] as Member[]),
+    );
   }
   async function openDocument(id: string, preferredVersion?: string) {
     clearDocument();
@@ -166,10 +204,41 @@ function App() {
     if (!token) return;
     const expiry = window.setTimeout(() => {
       clearSession();
+      setOk(false);
       setMessage("Your session has expired. Please sign in again.");
     }, 3600_000);
     return () => window.clearTimeout(expiry);
   }, [token]);
+
+  // Poll an unfinished question until it settles; the orchestrator answers asynchronously.
+  const askId = ask?.id;
+  const askOpen = ask?.status === "PENDING" || ask?.status === "RUNNING";
+  useEffect(() => {
+    if (!askId || !askOpen) return;
+    let cancelled = false;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const next = await api<AskTask>("/ai/tasks/" + askId);
+        if (cancelled) return;
+        setAsk(next);
+        if (next.status === "PENDING" || next.status === "RUNNING")
+          timer = window.setTimeout(() => void poll(), 1500);
+      } catch (e) {
+        if (cancelled) return;
+        setAsk(null);
+        setOk(false);
+        setMessage(e instanceof Error ? e.message : "Connection error");
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // api() reads the current token; restart only when the task or session changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askId, askOpen, token]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -195,6 +264,7 @@ function App() {
     const data = new FormData(form);
     const file = data.get("file") as File;
     if (!file?.size || file.size > 2097152) {
+      setOk(false);
       setMessage("Choose a non-empty file no larger than 2 MiB.");
       return;
     }
@@ -310,6 +380,7 @@ function App() {
             setProject(p);
             setHits([]);
             setSearched(false);
+            setAsk(null);
             setDocs([]);
             void task(() => refreshDocs(p));
           }}
@@ -343,6 +414,64 @@ function App() {
           <small>
             {user.is_admin ? "Administrator" : "Organization member"}
           </small>
+          <details className="password">
+            <summary>Change password</summary>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = e.currentTarget;
+                const data = new FormData(f);
+                if (data.get("new") !== data.get("again")) {
+                  setOk(false);
+                  setMessage("The new passwords do not match.");
+                  return;
+                }
+                void task(async () => {
+                  await api("/auth/password", {
+                    ...json({
+                      current_password: data.get("current"),
+                      new_password: data.get("new"),
+                    }),
+                  });
+                  f.reset();
+                  success(
+                    "Password changed. Your other sessions were signed out.",
+                  );
+                });
+              }}
+            >
+              <input
+                name="current"
+                type="password"
+                aria-label="Current password"
+                placeholder="Current password"
+                autoComplete="current-password"
+                maxLength={256}
+                required
+              />
+              <input
+                name="new"
+                type="password"
+                aria-label="New password"
+                placeholder="New password (16+ characters)"
+                autoComplete="new-password"
+                minLength={16}
+                maxLength={256}
+                required
+              />
+              <input
+                name="again"
+                type="password"
+                aria-label="Repeat new password"
+                placeholder="Repeat new password"
+                autoComplete="new-password"
+                minLength={16}
+                maxLength={256}
+                required
+              />
+              <button disabled={busy}>Save password</button>
+            </form>
+          </details>
           <button
             className="secondary"
             onClick={() =>
@@ -371,12 +500,23 @@ function App() {
           <span className="badge">Local & private</span>
         </header>
         {message && (
-          <div className="notice" role="alert">
+          <div
+            className={ok ? "notice ok" : "notice"}
+            role={ok ? "status" : "alert"}
+          >
             {message}
           </div>
         )}
         {user.is_admin && (
-          <details className="admin">
+          <details
+            className="admin"
+            onToggle={(e) => {
+              if (e.currentTarget.open && !accounts.length)
+                void task(async () =>
+                  setAccounts(await api<Account[]>("/users")),
+                );
+            }}
+          >
             <summary>Manage users and projects</summary>
             <div className="admin-grid">
               <form
@@ -401,7 +541,7 @@ function App() {
                       });
                     await refreshProjects();
                     f.reset();
-                    setMessage("Project created.");
+                    success("Project created.");
                   });
                 }}
               >
@@ -433,7 +573,7 @@ function App() {
                     );
                     f.reset();
                     setAccounts(await api<Account[]>("/users"));
-                    setMessage("User created.");
+                    success("User created.");
                   });
                 }}
               >
@@ -474,7 +614,7 @@ function App() {
                         method: "PUT",
                       },
                     );
-                    setMessage(
+                    success(
                       "Membership saved. Existing project approvals require a new review.",
                     );
                   });
@@ -517,6 +657,50 @@ function App() {
                 </div>
                 <button disabled={busy || !project}>Save membership</button>
               </form>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = e.currentTarget;
+                  const data = new FormData(f);
+                  void task(async () => {
+                    await api(`/users/${data.get("user")}/password`, {
+                      ...json({ new_password: data.get("password") }),
+                      method: "PUT",
+                    });
+                    f.reset();
+                    success(
+                      "Password reset. That user was signed out and their pending approvals need a new review.",
+                    );
+                  });
+                }}
+              >
+                <h3>Reset a user’s password</h3>
+                <select name="user" aria-label="User to reset" required>
+                  <option value="">Select a user</option>
+                  {accounts
+                    .filter((a) => a.id !== user.id)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.username}
+                      </option>
+                    ))}
+                </select>
+                <input
+                  name="password"
+                  type="password"
+                  aria-label="Temporary password"
+                  placeholder="Temporary password (16+ characters)"
+                  autoComplete="new-password"
+                  minLength={16}
+                  maxLength={256}
+                  required
+                />
+                <button disabled={busy}>Reset password</button>
+                <small>
+                  Share the temporary password through a trusted channel and
+                  ask the user to change it.
+                </small>
+              </form>
             </div>
           </details>
         )}
@@ -532,7 +716,9 @@ function App() {
             <section className="documents">
               <div className="section-title">
                 <h2>Document library</h2>
-                <span>{docs.length} documents</span>
+                <span>
+                  {docs.length} {docs.length === 1 ? "document" : "documents"}
+                </span>
               </div>
               <form
                 className="search"
@@ -596,6 +782,83 @@ function App() {
                       <span dir="ltr">
                         {hit.version_id.slice(0, 8)} · {hit.start_offset}–
                         {hit.end_offset}
+                      </span>
+                    </button>
+                  ))}
+                </section>
+              )}
+              <form
+                className="ask"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = e.currentTarget;
+                  const data = new FormData(f);
+                  setAsk(null);
+                  void task(async () => {
+                    const created = await api<{ id: string }>(
+                      "/ai/tasks",
+                      json({
+                        project_id: project,
+                        question: String(data.get("question")),
+                      }),
+                    );
+                    setAsk(await api<AskTask>("/ai/tasks/" + created.id));
+                    f.reset();
+                  });
+                }}
+              >
+                <label>
+                  Ask a question about published documents
+                  <textarea
+                    name="question"
+                    placeholder="For example: What is the payment term in the services agreement?"
+                    minLength={2}
+                    maxLength={1000}
+                    rows={2}
+                    required
+                  />
+                </label>
+                <button disabled={busy || askOpen}>
+                  {askOpen ? "Answering…" : "Ask"}
+                </button>
+                <small>
+                  Answers use only published documents you can access, with
+                  citations. AI can be wrong; check the sources.
+                </small>
+              </form>
+              {ask && (
+                <section className="ask-result" aria-live="polite">
+                  <h3>Answer</h3>
+                  {askOpen && (
+                    <p className="muted">Finding evidence and answering…</p>
+                  )}
+                  {ask.status === "COMPLETED" && (
+                    <p className="ask-answer">{ask.answer}</p>
+                  )}
+                  {ask.status === "FAILED" && (
+                    <p className="ask-failed">
+                      {ASK_ERRORS[ask.error_code ?? ""] ??
+                        "The question could not be answered."}
+                    </p>
+                  )}
+                  {ask.status === "COMPLETED" && ask.sources.length === 0 && (
+                    <p className="muted">No supporting sources.</p>
+                  )}
+                  {ask.sources.map((src) => (
+                    <button
+                      key={src.id}
+                      className="search-hit"
+                      disabled={busy}
+                      onClick={() =>
+                        void task(async () => {
+                          await openDocument(src.document_id, src.version_id);
+                        })
+                      }
+                    >
+                      <strong>{src.title}</strong>
+                      <span dir="ltr">
+                        {src.version_id.slice(0, 8)} · {src.start_offset}–
+                        {src.end_offset}
                       </span>
                     </button>
                   ))}
@@ -726,7 +989,7 @@ function App() {
                           );
                           retryUpload.current = null;
                           await openDocument(doc.id);
-                          setMessage(
+                          success(
                             "New version saved. The original is preserved.",
                           );
                         })
@@ -755,7 +1018,7 @@ function App() {
                             }),
                           );
                           await openDocument(doc.id);
-                          setMessage(
+                          success(
                             "Review requested. Another authorized person must approve it.",
                           );
                         })
@@ -804,18 +1067,25 @@ function App() {
                                 method: "PUT",
                               },
                             );
-                            setMessage("Document access saved.");
+                            success("Document access saved.");
                           });
                         }}
                       >
-                        <input
+                        <select
                           ref={grantUser}
                           name="user"
-                          aria-label="Coworker ID for document access"
-                          placeholder="Project member ID (UUID)"
-                          dir="ltr"
+                          aria-label="Person to give document access"
                           required
-                        />
+                        >
+                          <option value="">Select a person</option>
+                          {members
+                            .filter((m) => m.id !== user.id)
+                            .map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.username}
+                              </option>
+                            ))}
+                        </select>
                         <div className="checks">
                           <label className="check">
                             <input name="edit" type="checkbox" />
@@ -837,11 +1107,11 @@ function App() {
                             onClick={() =>
                               void task(async () => {
                                 const id = grantUser.current?.value;
-                                if (!id) throw new Error("Enter a user ID.");
+                                if (!id) throw new Error("Select a person first.");
                                 await api(`/documents/${doc.id}/access/${id}`, {
                                   method: "DELETE",
                                 });
-                                setMessage("Document-specific access revoked.");
+                                success("Document-specific access revoked.");
                               })
                             }
                           >
@@ -903,7 +1173,7 @@ function App() {
                                 json({ approval_id: a.id }),
                               );
                               await openDocument(doc.id);
-                              setMessage("Version published successfully.");
+                              success("Version published successfully.");
                             })
                           }
                         >
@@ -962,7 +1232,7 @@ function App() {
                     });
                     setReview(null);
                     if (doc) await openDocument(doc.id);
-                    setMessage(
+                    success(
                       "Approval recorded. Publishing is a separate action.",
                     );
                   })

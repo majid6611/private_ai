@@ -47,6 +47,11 @@ Document-specific grants use the coworker's UUID, available from the admin user 
 make check
 ```
 
+`make check` rebuilds the test images, then runs the backend integration tests, the
+orchestrator prompt-injection/boundary tests (fake model, no network), a Compose
+deployment-boundary check (which service may hold which secret, volume and network),
+ruff and mypy.
+
 Tests use a separate tmpfs PostgreSQL database and refuse the application database.
 To remove disposable test records/services:
 
@@ -125,6 +130,17 @@ Internal ingestion routes are denied at Nginx and require a separate service key
 the backend. A human token cannot substitute for that key, and the key does not
 substitute for human approval. Never publish parser/indexer/backend/DB ports.
 
+## Passwords and sharing
+
+Any user can change their own password in the sidebar (`POST /api/v1/auth/password`):
+it needs the current password, is rate-limited, keeps that session and signs out the
+others, and does not invalidate pending approvals. An administrator can set a temporary
+password for another user (`PUT /api/v1/users/{id}/password`); this signs that user out
+and bumps their authorization revision, so their pending approvals and AI tasks need a
+fresh review (an admin cannot reset an approver's password and approve in their name).
+Document sharing now picks people by name from `GET /api/v1/projects/{id}/members`
+(visible to project members only; names, no capability flags).
+
 ## AI question tasks (scaffold, no model installed)
 
 `POST /api/v1/ai/tasks` (`project_id`, `question`) retrieves up to 8 authorized
@@ -136,7 +152,8 @@ revision on every read. The orchestrator leases tasks through an internal,
 service-keyed route and calls an OpenAI-compatible model only when `MODEL_ID` and a
 `MODEL_EVALUATION_FILE` with `passed: true` for that model are configured. Neither
 exists yet, so tasks with matching evidence end as `MODEL_UNAVAILABLE`; tasks with
-no matching evidence complete with "Insufficient evidence". No UI uses this yet.
+no matching evidence complete with "Insufficient evidence". The project page has an "Ask" panel that polls the task and
+shows the answer with citation buttons, or a clear "no AI model is available" state.
 
 ## Backup and restore verification
 

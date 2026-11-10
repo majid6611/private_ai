@@ -25,7 +25,8 @@ Implemented:
   and publication-revision-bound tasks, source provenance, service-keyed leasing,
   citation validation and revalidation at lease, completion and read. The
   orchestrator refuses to call a model without a passed evaluation record. No model
-  service is deployed and the UI does not use it; retrieval is the same lexical
+  service is deployed; the UI Ask panel (project page) submits, polls and shows
+  answers, citations and failure states; retrieval is the same lexical
   search with an any-word (OR) query over passage text and document title, ranked by
   PostgreSQL cover-density (migration 0007 adds a searchable title vector).
 
@@ -54,6 +55,17 @@ Verification:
 - Frontend/backend updates use Docker DNS resolution at ingress; the web health check
   covers backend readiness, not merely serving the static login page.
 
+Hardening added 2026-11-01: password change and admin reset with tests; project-member
+picker for document grants; orchestrator injection/boundary tests (`orchestrator/
+test_generate.py`: no model call without a passed evaluation record, foreign or
+excessive citations rejected, tools/extra fields dropped, redirects not followed,
+response size bounded; unusable model output reports `INVALID_OUTPUT`); and
+`scripts/check-boundaries.py` for Compose trust boundaries (verified to catch eight
+deliberately broken configs). A headless-Chromium run (Playwright, desktop and mobile
+widths) exercised login, project, search, Ask states, admin panel, document access
+picker and password change; it caught and fixed a polling bug in the Ask panel. This
+is a scripted smoke pass, not full accessibility or cross-browser certification.
+
 Retrieval evaluation (`backend/tests/test_retrieval_eval.py`, synthetic corpus in
 `backend/tests/eval/`): 7 real-answer documents plus 100 generated near-duplicate
 distractors (119 chunks), 42 answerable questions (22 direct, 8 paraphrase, 12 hard
@@ -64,8 +76,8 @@ retrieval quality; no-answer questions still retrieve chunks (declining is the m
 layer's job and is untested). English stemming and vectors have not been evaluated.
 
 Limits / remaining work:
-- No browser provider was available; visual/accessibility/browser end-to-end QA has
-  not been completed. UI was built and HTTP-served, not visually certified.
+- Browser QA is a scripted Chromium smoke pass only; accessibility audit, Firefox/
+  Safari and a full visual review have not been done.
 - Model inference, embeddings/pgvector, hybrid RAG, meeting transcription and model
   benchmarks are not implemented (only the AI task scaffold above). Text search is explicitly labeled, not simulated AI.
 - PDF stays quarantined. PDF parser/malware workflow, DOCX and OCR remain pending.

@@ -129,6 +129,17 @@ services:
     pids_limit: 32
     depends_on:
       backend: {condition: service_healthy}
+  orchestrator-tests:
+    image: private-ai-workspace-orchestrator:dev
+    build: ./orchestrator
+    profiles: [test]
+    command: [python, -m, unittest, -v, test_generate]
+    tmpfs: [/tmp:size=8m]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
   test-db:
     image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     profiles: [test]

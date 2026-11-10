@@ -9,7 +9,10 @@ from typing import Any, cast
 from uuid import UUID
 
 backend = os.environ.get("BACKEND_URL", "http://backend:8000")
-service_key = Path(os.environ["ORCHESTRATOR_KEY_FILE"]).read_text().strip()
+
+
+class InvalidModelOutput(ValueError):
+    """The model answered, but not with a usable, source-bound answer."""
 
 
 def post(
@@ -69,9 +72,14 @@ def generate(task: dict[str, Any]) -> dict[str, Any]:
         {},
         timeout=90,
     )
-    result = json.loads(response["choices"][0]["message"]["content"])
+    try:
+        result = json.loads(response["choices"][0]["message"]["content"])
+        if not isinstance(result, dict):
+            raise InvalidModelOutput("Not an object")
+    except (ValueError, KeyError, IndexError, TypeError) as error:
+        raise InvalidModelOutput("Unparseable model response") from error
     if not isinstance(result.get("answer"), str) or not 0 < len(result["answer"]) <= 12000:
-        raise ValueError("Invalid answer")
+        raise InvalidModelOutput("Invalid answer")
     ids = result.get("citation_ids")
     allowed = {s["id"] for s in task["sources"]}
     if (
@@ -79,33 +87,41 @@ def generate(task: dict[str, Any]) -> dict[str, Any]:
         or not 1 <= len(ids) <= 8
         or not all(isinstance(i, str) and i in allowed for i in ids)
     ):
-        raise ValueError("Invalid citations")
+        raise InvalidModelOutput("Invalid citations")
     return {"lease_token": task["lease_token"], "answer": result["answer"], "citation_ids": ids}
 
 
-while True:
-    try:
-        task = post(backend + "/internal/v1/ai/lease", {}, {"X-Orchestrator-Key": service_key}).get(
-            "task"
-        )
-        if task is None:
-            time.sleep(3)
-            continue
-        task_id = str(UUID(task["id"]))
+def main() -> None:
+    service_key = Path(os.environ["ORCHESTRATOR_KEY_FILE"]).read_text().strip()
+    while True:
         try:
-            result = generate(task)
+            task = post(backend + "/internal/v1/ai/lease", {}, {"X-Orchestrator-Key": service_key}).get(
+                "task"
+            )
+            if task is None:
+                time.sleep(3)
+                continue
+            task_id = str(UUID(task["id"]))
+            try:
+                result = generate(task)
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                result = {
+                    "lease_token": task["lease_token"],
+                    "answer": "",
+                    "citation_ids": [],
+                    "error_code": "INVALID_OUTPUT"
+                    if isinstance(error, InvalidModelOutput)
+                    else "MODEL_UNAVAILABLE",
+                }
+            post(
+                backend + "/internal/v1/ai/tasks/" + task_id + "/complete",
+                result,
+                {"X-Orchestrator-Key": service_key},
+            )
         except (OSError, ValueError, KeyError, TypeError):
-            result = {
-                "lease_token": task["lease_token"],
-                "answer": "",
-                "citation_ids": [],
-                "error_code": "MODEL_UNAVAILABLE",
-            }
-        post(
-            backend + "/internal/v1/ai/tasks/" + task_id + "/complete",
-            result,
-            {"X-Orchestrator-Key": service_key},
-        )
-    except (OSError, ValueError, KeyError, TypeError):
-        print("AI task attempt failed; no source or credentials are logged.", flush=True)
-        time.sleep(3)
+            print("AI task attempt failed; no source or credentials are logged.", flush=True)
+            time.sleep(3)
+
+
+if __name__ == "__main__":
+    main()

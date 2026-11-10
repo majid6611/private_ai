@@ -401,6 +401,10 @@ header {
   margin-bottom: 20px;
   overflow-wrap: anywhere;
 }
+.notice.ok {
+  background: #e4f1dc;
+  color: #2c5a2e;
+}
 .notice:empty {
   display: none;
 }
@@ -597,4 +601,63 @@ pre {
 }
 .access-panel input {
   margin-top: 10px;
+}
+
+.ask {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e0e6db;
+}
+.ask textarea {
+  display: block;
+  width: 100%;
+  margin: 6px 0 10px;
+  resize: vertical;
+}
+.ask button {
+  width: 100%;
+  font-size: 12px;
+}
+.ask small {
+  margin-top: 8px;
+  font-size: 10px;
+}
+.ask-result {
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f3f7ef;
+  font-size: 12px;
+}
+.ask-result h3 {
+  margin: 0 0 8px;
+}
+.ask-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0 0 12px;
+}
+.ask-failed {
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fff0d7;
+  color: #795621;
+}
+
+.password {
+  margin: 10px 0;
+  font-size: 12px;
+}
+.password summary {
+  cursor: pointer;
+}
+.password input {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+}
+.password button {
+  width: 100%;
+  font-size: 11px;
 }

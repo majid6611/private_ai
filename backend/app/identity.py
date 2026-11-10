@@ -38,6 +38,15 @@ class UserStatus(Input):
     enabled: bool
 
 
+class PasswordChange(Input):
+    current_password: SecretStr = Field(min_length=1, max_length=256)
+    new_password: SecretStr = Field(min_length=16, max_length=256)
+
+
+class PasswordReset(Input):
+    new_password: SecretStr = Field(min_length=16, max_length=256)
+
+
 def identity_router(engine: Engine, access: Access) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
     DB = Annotated[Connection, Depends(access.transaction, scope="function")]
@@ -117,6 +126,71 @@ def identity_router(engine: Engine, access: Access) -> APIRouter:
             text("DELETE FROM sessions WHERE token_hash=:token"), {"token": human.token_hash}
         )
         audit(connection, human.id, "logout", human.id)
+
+    @router.post("/auth/password", status_code=204)
+    def change_password(body: PasswordChange, connection: DB, human: Human) -> None:
+        # Own limiter key: a stolen session must not be able to guess the current password.
+        key = digest_token("password:" + str(human.id))
+        connection.execute(
+            text("INSERT INTO login_limits(key) VALUES (:k) ON CONFLICT DO NOTHING"), {"k": key}
+        )
+        limit = (
+            connection.execute(
+                text("""SELECT failures, window_start < now() - interval '5 minutes' AS reset
+            FROM login_limits WHERE key = :k FOR UPDATE"""),
+                {"k": key},
+            )
+            .mappings()
+            .one()
+        )
+        if limit["reset"]:
+            connection.execute(
+                text("UPDATE login_limits SET failures=0, window_start=now() WHERE key=:k"),
+                {"k": key},
+            )
+        elif limit["failures"] >= 5:
+            raise HTTPException(429, "Too many attempts", headers={"Retry-After": "300"})
+        current = connection.execute(
+            text("SELECT password_hash FROM users WHERE id=:id FOR UPDATE"), {"id": human.id}
+        ).scalar_one()
+        if not verify_password(body.current_password.get_secret_value(), current):
+            connection.execute(
+                text("UPDATE login_limits SET failures=failures+1 WHERE key=:k"), {"k": key}
+            )
+            # Committed failure count must survive the rejection response.
+            connection.commit()
+            raise HTTPException(403, "Current password is incorrect")
+        new = body.new_password.get_secret_value()
+        if new == body.current_password.get_secret_value():
+            raise HTTPException(422, "Choose a different password")
+        connection.execute(
+            text("UPDATE users SET password_hash=:hash WHERE id=:id"),
+            {"hash": hash_password(new), "id": human.id},
+        )
+        connection.execute(text("UPDATE login_limits SET failures=0 WHERE key=:k"), {"k": key})
+        # Other sessions may belong to whoever knew the old password; keep only this one.
+        connection.execute(
+            text("DELETE FROM sessions WHERE user_id=:id AND token_hash<>:token"),
+            {"id": human.id, "token": human.token_hash},
+        )
+        audit(connection, human.id, "password_changed", human.id)
+
+    @router.put("/users/{user_id}/password", status_code=204)
+    def reset_password(user_id: UUID, body: PasswordReset, connection: DB, human: Admin) -> None:
+        if user_id == human.id:
+            raise HTTPException(409, "Use the change-password form for your own account")
+        # The revision bump invalidates approvals/AI tasks bound to the old account state,
+        # so an administrator cannot reset an approver's password and approve in their name.
+        updated = connection.execute(
+            text(
+                "UPDATE users SET password_hash=:hash, auth_revision=auth_revision+1 WHERE id=:id RETURNING id"
+            ),
+            {"hash": hash_password(body.new_password.get_secret_value()), "id": user_id},
+        ).scalar()
+        if updated is None:
+            raise HTTPException(404, "User not found")
+        connection.execute(text("DELETE FROM sessions WHERE user_id=:id"), {"id": user_id})
+        audit(connection, human.id, "password_reset_by_admin", user_id)
 
     @router.get("/users")
     def list_users(connection: DB, human: Admin) -> list[dict[str, str | bool]]:
@@ -203,6 +277,26 @@ def identity_router(engine: Engine, access: Access) -> APIRouter:
             "can_publish": row["can_publish"],
             "can_history": row["can_history"],
         }
+
+    @router.get("/projects/{project_id}/members")
+    def project_members(
+        project_id: UUID, connection: DB, human: Human
+    ) -> list[dict[str, str]]:
+        """Names of enabled co-members, for pickers. No capability flags are exposed."""
+        if (
+            connection.execute(
+                text("SELECT 1 FROM memberships WHERE project_id=:p AND user_id=:u"),
+                {"p": project_id, "u": human.id},
+            ).scalar()
+            is None
+        ):
+            raise HTTPException(404, "Project not found")
+        rows = connection.execute(
+            text("""SELECT u.id,u.username FROM memberships m JOIN users u ON u.id=m.user_id
+            WHERE m.project_id=:p AND u.enabled ORDER BY u.username LIMIT 200"""),
+            {"p": project_id},
+        ).mappings()
+        return [{"id": str(r["id"]), "username": r["username"]} for r in rows]
 
     def lock_project(connection: Connection, project_id: UUID) -> None:
         if (
