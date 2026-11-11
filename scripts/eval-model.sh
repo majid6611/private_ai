@@ -3,6 +3,7 @@
 # Usage: sh scripts/eval-model.sh [model-id]   (needs: make up-ai, models/work/cases.json)
 set -eu
 cd "$(dirname "$0")/.."
+mkdir -p models/work && chmod 777 models/work
 model="${1:-qwen2.5:1.5b}"
 dc="docker compose -f compose.yaml -f compose.ai.yaml --profile ai"
 $dc build orchestrator >/dev/null

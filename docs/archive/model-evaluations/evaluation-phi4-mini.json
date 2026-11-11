@@ -1,0 +1,23 @@
+{
+ "model_id": "phi4-mini",
+ "cases": 52,
+ "answerable_evaluated": 40,
+ "answerable_skipped_retrieval_miss": 2,
+ "correct": "33/40",
+ "correct_rate": 0.825,
+ "citation_valid": "36/40",
+ "citation_rate": 0.9,
+ "no_answer_declined": "3/10",
+ "decline_rate": 0.3,
+ "answers_with_fabricated_figures": 0,
+ "model_call_failures": 5,
+ "latency_p50_s": 60.8,
+ "latency_p95_s": 116.5,
+ "thresholds": {
+  "correct": 0.9,
+  "citation": 0.95,
+  "decline": 0.9,
+  "fabricated": 0
+ },
+ "passed": false
+}

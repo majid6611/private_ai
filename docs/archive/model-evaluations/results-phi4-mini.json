@@ -1,0 +1,787 @@
+{
+ "summary": {
+  "model_id": "phi4-mini",
+  "cases": 52,
+  "answerable_evaluated": 40,
+  "answerable_skipped_retrieval_miss": 2,
+  "correct": "33/40",
+  "correct_rate": 0.825,
+  "citation_valid": "36/40",
+  "citation_rate": 0.9,
+  "no_answer_declined": "3/10",
+  "decline_rate": 0.3,
+  "answers_with_fabricated_figures": 0,
+  "model_call_failures": 5,
+  "latency_p50_s": 60.8,
+  "latency_p95_s": 116.5,
+  "thresholds": {
+   "correct": 0.9,
+   "citation": 0.95,
+   "decline": 0.9,
+   "fabricated": 0
+  },
+  "passed": false
+ },
+ "cases": [
+  {
+   "question": "How much is the fixed implementation fee under the services agreement in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "USD 184,500",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 83.9,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How many days does the client have to pay an undisputed invoice in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Undisputed invoices are payable within 45 days.",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 85.7,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How much notice is needed to stop the agreement from renewing automatically in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "90 days",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 85.4,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the cap on Supplier's liability in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Supplier's cap on liability for Northwind Logistics and Brightline Software services agreement (S1) is limited to twelve times the implementation fee.",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 83.4,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": false,
+   "fabricated": []
+  },
+  {
+   "question": "Which courts hear disputes under the services agreement in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The courts sitting in Toronto hear disputes under the services agreements.",
+   "cited": [
+    "38b7e477-beff-4d6e-9fe1-c67dd4e10296"
+   ],
+   "seconds": 83.0,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What availability does Brightline guarantee for the portal in the Northwind Logistics and Brightline Software services agreement?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Brightline guarantees a monthly availability of 99.5 percent for its portal.",
+   "cited": [
+    "38b7e477-beff-4d6e-9fe1-c67dd4e10296"
+   ],
+   "seconds": 71.9,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How long do NDA confidentiality obligations last in the Cedar Ridge Analytics and Harbor Point Capital NDA?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The Cedar Ridge Analytics and Harbor Point Capital NDA's confidentiality obligations Last for five years.",
+   "cited": [
+    "a108a2ac-a853-4f94-a193-86c8605bfd29"
+   ],
+   "seconds": 62.3,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How quickly must confidential material be returned after someone asks for it in the Cedar Ridge Analytics and Harbor Point Capital NDA?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "Within 15 business days after a written request.",
+   "cited": [
+    "a108a2ac-a853-4f94-a193-86c8605bfd29",
+    "62a1cd2b-a76f-4dea-8dab-b6a8651b57f2"
+   ],
+   "seconds": 62.1,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What must a recipient do if a court orders it to disclose confidential information in the Cedar Ridge Analytics and Harbor Point Capital NDA?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": false,
+   "error": "InvalidModelOutput: Invalid citations",
+   "seconds": 72.3,
+   "gold_retrieved": true
+  },
+  {
+   "question": "For how long can the parties not hire each other's employees in the Cedar Ridge Analytics and Harbor Point Capital NDA?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "The confidentiality obligations under Cedar Ridge Analytics and Harbor Point Capital NDA last for five years from the date of the last disclosure.",
+   "cited": [
+    "a108a2ac-a853-4f94-a193-86c8605bfd29"
+   ],
+   "seconds": 56.9,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": false,
+   "fabricated": []
+  },
+  {
+   "question": "What is the purpose of the non-disclosure agreement between Cedar Ridge and Harbor Point in the Cedar Ridge Analytics and Harbor Point Capital NDA?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The purpose of the non-disclosure agreement between Cedar Ridge and Harbor Point is for them to evaluate a possible acquisition of Cedar Ridge's data platform division by exchanging confidential information solely for that evaluation.",
+   "cited": [
+    "a108a2ac-a853-4f94-a193-86c8605bfd29"
+   ],
+   "seconds": 76.1,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How many days of annual leave do full-time employees get in the Maple Street Design Studio handbook?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Full-time employees get 22 days of annual leave per calendar year, plus public holidays.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 61.6,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How many weeks of paid parental leave do birth parents receive in the Maple Street Design Studio handbook?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Birth parents in the Maple Street Design Studio handbook are entitled to 20 weeks of paid parental leave.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 57.4,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "On which day must everyone come to the office in the Maple Street Design Studio handbook?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "Everyone must come to the office on Tuesdays.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 98.0,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "When does a medical certificate become necessary for sick leave in the Maple Street Design Studio handbook?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "A medical certificate is required when an absence lasts more than three consecutive working days at Maple Street Design Studio.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 59.9,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the yearly learning budget per employee in the Maple Street Design Studio handbook?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "Each employee has an annual learning budget of CAD 1,500.",
+   "cited": [
+    "ea0125e6-3285-4fea-b93a-c6639c6586bf",
+    "65ef9337-a233-405b-8b44-12efefa01c46"
+   ],
+   "seconds": 125.2,
+   "gold_retrieved": false,
+   "correct": false,
+   "citation_ok": false,
+   "fabricated": []
+  },
+  {
+   "question": "How long is the probation period for new hires in the Maple Street Design Studio handbook?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "New employees at Maple Street Design Studio serve a probation period of three months.",
+   "cited": [
+    "74602d56-7e3b-43c4-b9a0-34ed926ee000"
+   ],
+   "seconds": 61.2,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the minimum password length in the Orchard Health Partners security policy?",
+   "kind": "paraphrase",
+   "answerable": true,
+   "ok": true,
+   "answer": "The minimum password length in the Orchard Health Partners security policy is 14 characters.",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 104.3,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How long are production database backups kept in the Orchard Health Partners security policy?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Production database backups in the Orchard Health Partners security policy are kept for 35 days.",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 116.5,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Within how many hours must suspected security incidents be reported in the Orchard Health Partners security policy?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Suspected security incidents within the Orchard Health Partners security policy must be reported to the security team within one hour of discovery.",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 109.6,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What encryption standard is required for data at rest in the Orchard Health Partners security policy?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Data at rest on laptops and servers for Orchard Health Partners must be encrypted with AES-256.",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 52.0,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How fast must critical vulnerabilities be patched in the Orchard Health Partners security policy?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Critical vulnerabilities in Silver Health Partners' security policy (S2) must be patched within 14 days.",
+   "cited": [
+    "3352814f-248b-4c1d-b6fa-90bdf04f823c"
+   ],
+   "seconds": 44.9,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": false,
+   "fabricated": []
+  },
+  {
+   "question": "What is the total of purchase order PO-77231 before tax in the Lakeshore Manufacturing and Keystone Industrial Supply purchase order?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The total before tax is CAD 46,260.00.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5"
+   ],
+   "seconds": 110.6,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the penalty for late delivery of the goods in the Lakeshore Manufacturing and Keystone Industrial Supply purchase order?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "A penalty of 0.5 percent of the order value applies for each full week of delay, up to a maximum of 10 percent.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5"
+   ],
+   "seconds": 123.8,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What warranty do accepted goods carry in the Lakeshore Manufacturing and Keystone Industrial Supply purchase order?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Accepted goods from Lakeshore Manufacturing to Keystone Industrial Supply under PO-77231 carry a 24 month warranty against defects in materials and workmanship.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5"
+   ],
+   "seconds": 62.1,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Is there an early payment discount on the purchase order in the Lakeshore Manufacturing and Keystone Industrial Supply purchase order?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Yes, there is an early payment discount on the purchase order PO-77231 issued by Lakeshore Manufacturing to Keystone Industrial Supply.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5"
+   ],
+   "seconds": 119.8,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the approved budget for the portal migration project in the Summit Credit Union portal migration plan?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The approved budget for the Summit Credit Union portal migration project in their summit credit union portal migration plan was CAD 412,000.",
+   "cited": [
+    "c05dbf72-f40a-4b48-87b2-7663e0030bc1"
+   ],
+   "seconds": 46.4,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Who is the project manager for the migration in the Summit Credit Union portal migration plan?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "Dana Okafor",
+   "cited": [
+    "c05dbf72-f40a-4b48-87b2-7663e0030bc1"
+   ],
+   "seconds": 42.9,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "When is the production cutover planned in the Summit Credit Union portal migration plan?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The Summit Credit Union portal migration's production cutover was scheduled for the weekend of May 9, as per evidence S1.",
+   "cited": [
+    "c05dbf72-f40a-4b48-87b2-7663e0030bc1"
+   ],
+   "seconds": 98.6,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Who may approve a vendor contract above CAD 150,000 in the Fernwood Retail Group vendor standard?",
+   "kind": "direct",
+   "answerable": true,
+   "ok": true,
+   "answer": "The CFO",
+   "cited": [
+    "eaed7769-98e1-43e4-a162-f8f1ffada7a1"
+   ],
+   "seconds": 37.4,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How long do I have to settle a bill from Brightline?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "The payment terms under Brightline's services are payable within 45 days of receipt.",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 40.1,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What happens to the Northwind contract if nobody says anything when the first two years are up?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "The Northwind contract with Brightline Software Inc will automatically renew for successive 12-month periods unless either party gives written notice of non-renewal at least 90 days before the end of each initial and subsequent terms.",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 62.2,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How soon must Harbor Point hand back or shred Cedar Ridge's secret papers once asked?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Harbor Point must return or securely destroy Cedar Ridge's secret papers within 15 business days after a written request.",
+   "cited": [
+    "a108a2ac-a853-4f94-a193-86c8605bfd29"
+   ],
+   "seconds": 51.6,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Can Harbor Point poach Cedar Ridge's staff?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Harbor Point cannot poach Cedar Ridge's staff for 12 months after this agreement as per S2.",
+   "cited": [
+    "62a1cd2b-a76f-4dea-8dab-b6a8651b57f2"
+   ],
+   "seconds": 51.2,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How much time off can Maple Street staff take when a baby is born?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Birth parents at Maple Street Design Studio can take up to 20 weeks of paid parental leave.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 56.2,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Can people at Maple Street Design Studio work from home?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Yes, people can potentially work from home at Maple Street Design Studio up to three days per week with manager approval.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 52.0,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is the spending limit at Maple Street before a boss has to sign off?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Each employee has an annual learning budget of CAD 1,200 for courses, books and conferences.",
+   "cited": [
+    "74602d56-7e3b-43c4-b9a0-34ed926ee000"
+   ],
+   "seconds": 52.7,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How often must Orchard Health people change their login secrets?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Orchard Health people must change their login secrets immediately after any suspected compromise.",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 61.9,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How long does Orchard Health have to tell regulators about a leak?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Orchard Health must report suspected security incidents within one hour of discovery and notify regulators (and affected patients) if required, but not later than 72 hours after confirming a breach.",
+   "cited": [
+    "d2b3a0d6-a639-43fb-b3fe-3b7945dc4100"
+   ],
+   "seconds": 56.8,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "What happens if Keystone ships the goods behind schedule?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Keystone bears the risk until unloading at receiving dock, but Lakeshore can cancel up to a week before delivery.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5",
+    "f6f85ad4-72d2-44e5-8212-b0749af4f831"
+   ],
+   "seconds": 53.7,
+   "gold_retrieved": true,
+   "correct": false,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "How much money has Summit Credit Union set aside for unexpected costs?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "Summit Credit Union has set aside an approved budget for the Customer Portal Migration project, which includes a contingency reserve of 12 percent on top of its base amount.",
+   "cited": [
+    "c05dbf72-f40a-4b48-87b2-7663e0030bc1"
+   ],
+   "seconds": 47.6,
+   "gold_retrieved": true,
+   "correct": true,
+   "citation_ok": true,
+   "fabricated": []
+  },
+  {
+   "question": "Who signs off on really big supplier deals at Fernwood?",
+   "kind": "hard",
+   "answerable": true,
+   "ok": true,
+   "answer": "The evidence provided does not contain any information regarding who signs off on really big supplier deals specifically for Fernwood.",
+   "cited": [
+    "b894b02d-8c9f-48af-a469-95e11d22c34e",
+    "3f2763d9-4359-46aa-a076-c2c4bb2e9243",
+    "71e718c3-b336-4ef1-8943-1e84aa91a681",
+    "089733ba-a710-4088-a26d-2aca913b3c98",
+    "8b918016-7405-44d3-8401-25db71f10b95"
+   ],
+   "seconds": 86.9,
+   "gold_retrieved": false,
+   "correct": false,
+   "citation_ok": false,
+   "fabricated": []
+  },
+  {
+   "question": "What is the CEO's home address?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": false,
+   "error": "InvalidModelOutput: Invalid citations",
+   "seconds": 30.9,
+   "gold_retrieved": true
+  },
+  {
+   "question": "What is the company's policy on pets in the office?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": false,
+   "error": "InvalidModelOutput: Invalid citations",
+   "seconds": 40.5,
+   "gold_retrieved": true
+  },
+  {
+   "question": "How much does Brightline charge for on-site training?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "Brightline charges CAD 2,000 for on-site training.",
+   "cited": [
+    "99fc810d-9d03-45e8-8ecd-698a370481ea"
+   ],
+   "seconds": 58.2,
+   "gold_retrieved": true,
+   "declined": false,
+   "fabricated": []
+  },
+  {
+   "question": "What is the maximum amount of stock options for new employees?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "The maximum amount for stock options is not specified in the provided evidence.",
+   "cited": [
+    "5dc8c4b8-c53e-4d02-9ba8-aa5382488750",
+    "29bd837a-a85e-4df0-9c4b-1109fb236838",
+    "b5f851ae-950e-4308-9925-8cf200f03ec3",
+    "65ef9337-a233-405b-8b44-12efefa01c46",
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1"
+   ],
+   "seconds": 60.4,
+   "gold_retrieved": true,
+   "declined": true,
+   "fabricated": []
+  },
+  {
+   "question": "Which cloud provider will host the migrated portal?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "Northwind Logistics Ltd will host the migrated portal.",
+   "cited": [
+    "c7be7304-dafc-4b2a-8775-23dc2228a166"
+   ],
+   "seconds": 66.4,
+   "gold_retrieved": true,
+   "declined": false,
+   "fabricated": []
+  },
+  {
+   "question": "What is the penalty for breaching the NDA?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": false,
+   "error": "InvalidModelOutput: Invalid citations",
+   "seconds": 49.5,
+   "gold_retrieved": true
+  },
+  {
+   "question": "How many parking spaces does Lakeshore have at its dock?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "The evidence provided does not contain information about how many parking spaces exist at Lakeshore's dock.",
+   "cited": [
+    "e5c11f2d-b383-4fc9-a009-fb6990c9cbb5",
+    "f6f85ad4-72d2-44e5-8212-b0749af4f831"
+   ],
+   "seconds": 22.1,
+   "gold_retrieved": true,
+   "declined": true,
+   "fabricated": []
+  },
+  {
+   "question": "What is Orchard Health's policy on using personal phones for work calls?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "Orchard Health's policy does not explicitly mention using personal phones for work calls, but it emphasizes that patient records are always classified as Restricted and must never be stored on personal devices or in personal cloud accounts (S1).",
+   "cited": [
+    "078a9209-17ce-4b90-94c3-581fa0f77f70"
+   ],
+   "seconds": 49.6,
+   "gold_retrieved": true,
+   "declined": false,
+   "fabricated": []
+  },
+  {
+   "question": "What are Fernwood's store opening hours?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": true,
+   "answer": "Fernwood's store opening hours cannot be determined as there is no evidence provided regarding Fernwood specifically.",
+   "cited": [
+    "a7c134c7-222c-481d-83e8-b0cbf9f196e1",
+    "5dc8c4b8-c53e-4d02-9ba8-aa5382488750",
+    "d177ba09-88ec-4401-a155-b826bedce00b",
+    "47d2ab2c-be92-4162-bc9c-07006b0e3412",
+    "99fc810d-9d03-45e8-8ecd-698a370481ea"
+   ],
+   "seconds": 57.2,
+   "gold_retrieved": true,
+   "declined": true,
+   "fabricated": []
+  },
+  {
+   "question": "When was Keystone Industrial Supply founded?",
+   "kind": "no_answer",
+   "answerable": false,
+   "ok": false,
+   "error": "InvalidModelOutput: Invalid citations",
+   "seconds": 52.5,
+   "gold_retrieved": true
+  }
+ ]
+}

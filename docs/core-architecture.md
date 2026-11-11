@@ -1,6 +1,7 @@
 # Core system architecture (draft v0.1)
 
 Status: proposal for review. Nothing here is implemented yet except where marked "exists today".
+The first source to be built is MySQL; its plan is in [mysql-source.md](mysql-source.md).
 
 ## 1. Goal
 
@@ -91,8 +92,10 @@ a credential for the core.
 | `GET /v1/items/{id}/content` | Bounded bytes (documents) or bounded rows (records) |
 | `POST /v1/items/{id}/permissions` | Who may read: external principals (users, groups) |
 | `POST /v1/principals {cursor}` | External users, groups and memberships, for ACL sync |
-| `POST /v1/schema` | (records) tables, columns, descriptions |
-| later: `POST /v1/query` | (records) parameterised read-only queries on an allow-listed semantic layer |
+| `POST /v1/schema` | (records) tables, columns, keys, comments, size estimates |
+| `POST /v1/profile` | (records) chunked, resumable statistics over every row of a table |
+| `POST /v1/sample` | (records) a few rows with sensitive columns masked |
+| later: `POST /v1/query` | (records) validated read-only queries on an allow-listed semantic layer |
 
 Everything is paginated, size-bounded and time-limited. Errors are typed (`retry_later`,
 `forbidden`, `gone`, `unsupported`).
@@ -172,7 +175,9 @@ We build only what proves the contract:
 2. **Local folder** (offline, read-only): the simplest real source.
 3. **Managed workspace**: today's upload, approval and publish workflow, packaged as a built-in
    source. This preserves current work and demonstrates a rich ACL model.
-4. **Read-only Postgres** (records), added in phase 3 to prove the `records` kind.
+4. **Read-only MySQL** (records), the first real source, proving the `records` kind. It reads the
+   structure, profiles all data with SQL, and builds a catalog the model describes. See
+   [mysql-source.md](mysql-source.md).
 
 A **conformance test kit** any connector author can run: pagination, size limits, malformed
 responses, permission denial, deletion, retry behaviour, and a check that the manifest's network
@@ -203,7 +208,8 @@ An **SDK** (Python first) implements the protocol server so authors write only l
    managed workspace; incremental sync, deletion propagation, ACL sync.
    Acceptance: a third-party mock connector cannot read another source or reach the network
    unless its manifest says so (tested).
-4. **Records.** Postgres reference connector; semantic layer; governed queries.
+4. **Records.** MySQL connector (catalog, profiling, descriptions), then the semantic layer and
+   governed queries, per [mysql-source.md](mysql-source.md).
 5. **Scale and quality.** Vector index (pgvector or similar) replacing in-process comparison,
    entities and relations, freshness reporting.
 
@@ -213,7 +219,7 @@ An **SDK** (Python first) implements the protocol server so authors write only l
   every connector must pass the permission tests in the kit.
 - **Untrusted connectors** can lie about content. Core-computed hashes, source namespaces and
   citations limit the damage but do not make a malicious source trustworthy.
-- **Database questions** need a semantic layer; small local models cannot generate queries
+- **Database questions** (see [mysql-source.md](mysql-source.md)) need a semantic layer; small local models cannot generate queries
   reliably, so this stays a later, explicitly limited phase.
 - **Model quality and speed** are bounded by hardware: a 3.8B model on a 4-core CPU answers in
   roughly 30-90 seconds and does not pass the project's own quality gates yet.

@@ -65,7 +65,7 @@ services:
       retries: 6
   web:
     image: private-ai-workspace-web:dev
-    build: ./frontend
+    build: ./clients/web
     ports: ['127.0.0.1:8080:8080']
     networks: [ingress]
     read_only: true

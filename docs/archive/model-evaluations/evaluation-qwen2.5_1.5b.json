@@ -1,0 +1,23 @@
+{
+ "model_id": "qwen2.5:1.5b",
+ "cases": 52,
+ "answerable_evaluated": 40,
+ "answerable_skipped_retrieval_miss": 2,
+ "correct": "27/40",
+ "correct_rate": 0.675,
+ "citation_valid": "34/40",
+ "citation_rate": 0.85,
+ "no_answer_declined": "2/10",
+ "decline_rate": 0.2,
+ "answers_with_fabricated_figures": 1,
+ "model_call_failures": 1,
+ "latency_p50_s": 22.6,
+ "latency_p95_s": 35.2,
+ "thresholds": {
+  "correct": 0.9,
+  "citation": 0.95,
+  "decline": 0.9,
+  "fabricated": 0
+ },
+ "passed": false
+}
