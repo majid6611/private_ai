@@ -1,6 +1,7 @@
 # MySQL as the first source (plan v0.1)
 
-Status: proposal. Part of [core-architecture.md](core-architecture.md); it defines the `records`
+Status: **step A1-A3 built** (protocol, connector, test database: see "What exists" below); the core-side
+catalog is next. Part of [core-architecture.md](core-architecture.md); it defines the `records`
 side of the connector protocol and the first connector that uses it.
 
 ## 1. Goal
@@ -49,8 +50,8 @@ Python with a MySQL driver. Its manifest declares:
 | `POST /v1/query {sql, limits}` | Validated read-only SELECT with row, byte and time caps (phase C) |
 
 Controls: `SET SESSION TRANSACTION READ ONLY`; per-statement `MAX_EXECUTION_TIME`; rows and
-bytes per response capped; a throttle between chunks; scans chunked by primary-key range so they
-can pause and resume; a configurable window (for example nightly) and a preference for a **read
+bytes per response capped; a throttle between chunks; profiling runs one table per call so the core can pause and resume at table
+granularity (large tables are sampled, never scanned in full); a configurable window (for example nightly) and a preference for a **read
 replica**. If a table has no usable key, profiling falls back to sampling and says so.
 
 ## 4. The catalog (in the core)
@@ -119,6 +120,17 @@ without downloading anything.
    and a question about an unexposed table returns nothing about it.
 7. Credentials never appear in logs, responses or model prompts (tested).
 8. The connector cannot reach any host but the declared one (tested).
+
+## 8a. What exists
+
+- `connectors/sdk/connector_sdk.py`: protocol server (auth, size limits, typed errors).
+- `connectors/mysql/`: the connector (`check`, `schema`, `profile`, `sample`), see
+  [connector-protocol.md](connector-protocol.md).
+- `connectors/fixtures/mysql/` and `compose.fixtures.yaml`: the synthetic test database with
+  known answers, and 24 tests (`make check` runs them): read-only enforcement, credential safety,
+  masking, exact profiles for every deliberate problem, sampling of a large table, the HTTP layer.
+- Not yet: the core side (sources, catalog tables, profiling jobs, model descriptions, search),
+  the connector as a deployed service with its network allow-list, and `query` (phase C).
 
 ## 9. Phases
 

@@ -8,7 +8,9 @@ the web app, a CLI, chat bots and MCP clients are plugins that only use the API.
 Everything runs locally by default. A connector may need the internet (for example a cloud
 drive) or may not (an on-premises database); each connector says which, and the core enforces it.
 
-> **Status: restructuring.** The project started as a private document workspace and its goal
+> **Status: restructuring.** Phase A of the MySQL source has started: the protocol and a tested read-only
+> MySQL connector exist (`connectors/`); the core-side catalog is next.
+> The project started as a private document workspace and its goal
 > changed to a general knowledge core. Much of the document-workspace code is reused (identity,
 > permissions, ingestion, search, routing, answers, model services). The connector layer, the
 > database source and the API split are what we build next. The state before the change is kept as
@@ -30,6 +32,7 @@ drive) or may not (an on-premises database); each connector says which, and the 
 |---|---|
 | `backend/` | The core service (Python/FastAPI, PostgreSQL): identity, permissions, documents, ingestion, retrieval, routing, chat, audit |
 | `orchestrator/` | The only component that talks to the chat model; leases tasks, validates model output |
+| `connectors/` | The connector SDK and the **MySQL connector** (first source), plus the throwaway MySQL test database |
 | `workers/` | Isolated, secret-free helpers: text/PDF parser and the ingestion controller |
 | `clients/web/` | The web UI, now a **client** of the API (React, served by the `web` container) |
 | `deploy/`, `scripts/` | Database bootstrap, backup/restore verification, boundary checks, model evaluation |
@@ -43,6 +46,8 @@ drive) or may not (an on-premises database); each connector says which, and the 
   trust model, permissions, API outline, phases. Start here.
 - **[MySQL source](docs/mysql-source.md)**: the first connector: what "understand all the data"
   means, the catalog, profiling, caches, security, acceptance criteria.
+- **[Connector protocol v1](docs/connector-protocol.md)**: the calls a connector answers (implemented for
+  `records`), errors, and the guarantees every connector must keep.
 - [Permissions](docs/permissions.md): the permission contract the current code implements.
 - [Local hardware notes](docs/local-hardware.md): what the development machine can run.
 - Archive: [original blueprint](docs/archive/private-ai-platform-architecture.md),

@@ -4,6 +4,9 @@ init:
 up:
 	docker compose up --build -d --wait
 check:
+	docker compose -f compose.yaml -f compose.fixtures.yaml --profile fixtures build connector-tests
+	docker compose -f compose.yaml -f compose.fixtures.yaml --profile fixtures run --rm connector-tests
+	docker compose -f compose.yaml -f compose.fixtures.yaml --profile fixtures rm -sf mysql-fixture
 	docker compose --profile test build tests orchestrator-tests parser-tests
 	docker compose --profile test run --rm tests
 	docker compose --profile test run --rm orchestrator-tests

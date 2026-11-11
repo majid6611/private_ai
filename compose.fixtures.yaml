@@ -1,0 +1,37 @@
+# Throwaway MySQL used only to test connectors. Not part of the product.
+#   docker compose -f compose.yaml -f compose.fixtures.yaml --profile fixtures run --rm connector-tests
+services:
+  mysql-fixture:
+    image: mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
+    profiles: [fixtures]
+    environment:
+      MYSQL_ROOT_PASSWORD: fixture-root-password-not-secret
+    volumes:
+      - ./connectors/fixtures/mysql/init:/docker-entrypoint-initdb.d:ro
+    tmpfs: ["/var/lib/mysql:size=512m"]
+    networks: [fixtures]
+    mem_limit: 768m
+    healthcheck:
+      test: [CMD-SHELL, "mysqladmin ping -h 127.0.0.1 -uroot -pfixture-root-password-not-secret --silent && mysql -uloader -ploader-fixture-pw -h 127.0.0.1 -e 'SELECT 1' shop >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+  connector-tests:
+    build:
+      context: ./connectors
+      dockerfile: mysql/Dockerfile
+      target: test
+    profiles: [fixtures]
+    environment:
+      FIXTURE_HOST: mysql-fixture
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: ["/tmp:size=32m"]
+    mem_limit: 512m
+    networks: [fixtures]
+    depends_on:
+      mysql-fixture: {condition: service_healthy}
+networks:
+  fixtures:
+    internal: true
