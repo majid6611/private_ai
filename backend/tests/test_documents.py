@@ -258,9 +258,11 @@ def test_limits_mime_quarantine_and_cross_document_version(workspace: Workspace)
     )
     assert response.status_code == 201
     pdf = response.json()["document_id"]
-    assert (
-        w.client.get(f"/api/v1/documents/{pdf}/content", headers=w.user_headers).status_code == 409
-    )
+    # PDFs are served only as inert attachments (see tests/test_pdf.py for the full contract).
+    served = w.client.get(f"/api/v1/documents/{pdf}/content", headers=w.user_headers)
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "application/pdf"
+    assert served.headers["content-disposition"].startswith("attachment")
     first, second = upload(w, p, key="first-doc"), upload(w, p, key="second-doc")
     response = w.client.get(
         f"/api/v1/documents/{first['document_id']}/content",

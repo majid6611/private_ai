@@ -4,11 +4,12 @@ Local document workspace: authentication, project/document permissions, immutabl
 versions, independent human approval, atomic publication/rollback, isolated text
 ingestion and permission-filtered lexical search. Includes an English React UI.
 
-**AI answering is scaffolded but inactive:** the delegated task API and orchestrator
-exist, but no model service or passed evaluation record is configured, so questions
-cannot yet be answered by a model. Embeddings, PDF parsing, DOCX/OCR and production
-readiness remain pending. Text search is not represented as an AI answer. PDFs stay
-quarantined. No cloud services are used by the running application.
+**AI answering needs an optional local model** (`make up-ai`, see "Local model" below).
+Without it, questions that match documents report that no model is available; search works
+regardless. Embeddings, DOCX/OCR and production readiness remain
+pending. Text-based PDFs are supported (see below); scanned PDFs are detected and flagged
+but not read. Text search is not represented as an AI answer. No cloud services are used
+by the running application.
 
 ## Run
 
@@ -74,8 +75,8 @@ Uploads have raw bodies, `Content-Type: text/plain` or `application/pdf`, exact
 `Content-Length` and an `Idempotency-Key` of 8–128 ASCII letters/digits/underscore/
 dot/hyphen. Limit: 2 MiB/version and 100 MiB/project by default. Same-key retries
 return the original version; changed payloads conflict. Quota is reserved before
-intake and rolled back on failure. Text must be UTF-8. PDF signature checking is
-only triage: PDFs cannot be downloaded, indexed, reviewed or published yet.
+intake and rolled back on failure. Text must be UTF-8. A PDF must start with the PDF signature
+and is stored byte-for-byte as an immutable original (see PDF support).
 
 | Operation | Endpoint |
 |---|---|
@@ -121,14 +122,75 @@ content. Backend validates complete bounded source coverage and rebuilds chunk t
 from immutable original bytes. Leases expire and retry at most three times.
 
 `GET /api/v1/search?project_id=<uuid>&q=<query>` returns authorized active-version
-snippets with immutable version IDs and character offsets. It is PostgreSQL lexical
-search with the `simple` configuration, not semantic retrieval or model inference.
+snippets with immutable version IDs, character offsets and page numbers. It is lexical
+search, not semantic retrieval or model inference, but forgiving: PostgreSQL English
+stemming ("knows" matches "know"), plus typo tolerance through trigram word similarity
+("langues" finds "languages") that only fills slots the exact leg left empty. Search and
+AI questions share one retrieval function, so both apply identical permission filters
+(including the fuzzy leg). It cannot match synonyms ("knows" vs "skills"); that needs
+embeddings. The pg_trgm extension is installed by migration 0012; for a database created
+before it, run once as the DB owner: `GRANT CREATE ON DATABASE <name> TO workspace_migration;`
 There are no shared search/answer caches. PDF/OCR and vector/hybrid ranking await
 their own quality and isolation tests.
 
 Internal ingestion routes are denied at Nginx and require a separate service key at
 the backend. A human token cannot substitute for that key, and the key does not
 substitute for human approval. Never publish parser/indexer/backend/DB ports.
+
+## Local model (optional, for testing)
+
+```sh
+docker volume create ai_models        # once; copy Ollama model files into it
+UNEVALUATED_TEST_MODEL=1 make up-ai    # model container + orchestrator/backend settings
+```
+
+`compose.ai.yaml` adds an Ollama container (pinned by digest) on the internal inference
+network only: no secrets, no ports, no egress, non-root, read-only root filesystem and
+read-only weights, 3 GB memory cap. Only the orchestrator can reach it. The document core
+runs without it. `MODEL_ID` selects the model (default `qwen2.5:1.5b`); the backend hands
+the model `AI_CONTEXT_CHUNKS` passages per question (default 5 here, 8 otherwise).
+
+The orchestrator refuses to call a model unless `models/evaluation.json` records
+`passed: true` for it. `UNEVALUATED_TEST_MODEL=1` is the explicit local-testing override:
+every answer is then stored with the model id and `evaluated: false`, and the UI shows an
+amber "unevaluated test model" warning. To evaluate a model on the synthetic corpus:
+
+```sh
+docker compose --profile test run --rm -v "$PWD/models/work:/export" \
+  -e RETRIEVAL_EXPORT=/export/cases.json -e RETRIEVAL_EXPORT_LIMIT=5 tests \
+  python -m pytest -q tests/test_retrieval_eval.py
+sh scripts/eval-model.sh qwen2.5:1.5b      # writes models/work/evaluation-*.json
+cp models/work/evaluation-qwen2.5_1.5b.json models/evaluation.json   # only if passed
+```
+
+The evaluator scores correct answers, citations that include the true passage, fabricated
+figures, declining when evidence is missing, and latency (architecture section 20). Its
+checks are string-based smoke gates on a small synthetic set; they do not replace human
+review. Models are given short source labels (S1, S2, ...), never database ids, and
+every citation is validated against the passages they were shown. On this 4-core, 7 GiB
+CPU-only host a 1.5B model needs roughly 40-70 seconds per question, and the first
+request after startup also loads the model.
+
+## PDF support
+
+Text-based PDFs (up to 2 MiB) go through the same approval and publication flow as text.
+Originals are only ever served as inert attachments (`attachment`, `nosniff`, `no-store`,
+`Content-Security-Policy: sandbox`). An approver opens the exact candidate through
+`GET /api/v1/approvals/{id}/candidate` (the UI's "Open PDF under review"), so approval
+binds to the hash of the file they read.
+
+After publication the indexer leases the PDF and sends it to the isolated parser, which
+runs extraction (pypdf, pinned and hash-locked) in a child process with CPU, memory and
+file-size limits, no network, no secrets and no writable files. Its output is treated as
+untrusted derived data: the backend validates size, NULs, page ranges and chunk coverage,
+stores the extracted text with the extractor name (`version_texts`), rebuilds chunk text
+itself, and computes each chunk's page range. Search results and AI citations show
+"page N". Limits: 300 pages, 2 million characters. Unreadable files get a terminal
+verdict (`ENCRYPTED`, `MALFORMED`, `TOO_LARGE`, `TOO_MANY_PAGES`, `TIMEOUT`); a PDF with
+no text layer is flagged `NEEDS_OCR` and not indexed. OCR is not implemented.
+A compromised parser could return text that does not match the PDF, so reviewers should
+check citations against the original file. A synthetic sample contract is in `demo/`
+(`scripts/make-demo-pdf.py` regenerates it).
 
 ## Passwords and sharing
 
@@ -140,6 +202,75 @@ and bumps their authorization revision, so their pending approvals and AI tasks 
 fresh review (an admin cannot reset an approver's password and approve in their name).
 Document sharing now picks people by name from `GET /api/v1/projects/{id}/members`
 (visible to project members only; names, no capability flags).
+
+## Which document? (routing, clarification, memory)
+
+Questions are not matched against every passage of every file. Each published document has a
+**card** (a description written by the chat model while it is otherwise idle, plus section
+headings) and vectors. For a question (`app/routing.py`):
+
+1. **Shortlist:** cards are scored by vector similarity, then the best passages of the top
+   documents; names written in the question (for example "Majid") add weight.
+2. **Straight to the answer** when the user picked a document (the buttons below), when the chat
+   topic is settled and the question is a follow-up, when only one document fits, or when the
+   best score is far ahead (`ROUTE_DECISIVE_GAP`, 0.10).
+3. **Otherwise the chat model chooses** among the top four candidates (a second, short model
+   call, about 17 s on the development host). It can pick one, pick none ("I couldn't find
+   anything about that"), or say it is unsure, in which case the user is asked "Which one do you
+   mean?" with one button per document. The model can only choose from the allow-list stored on
+   the task; it never sees document ids, and the backend rechecks permissions when it retrieves.
+4. **Inside the chosen document** the best passages are found by word and meaning matches fused
+   together. "List all" questions (`all`, `list`, `every`, ...) read more
+   (`AI_LIST_EVIDENCE_CHARS`, default 4800 characters) and are slower and still incomplete when a
+   section spans many passages.
+5. **Memory:** the chat remembers the settled document ("Talking about: ..."; clearable), so
+   "and his languages?" stays on it.
+
+Measured on 59 questions over 8 documents (7 synthetic + a resume): vector scores alone chose
+the right file 81% of the time (19% silent mistakes); vectors plus the model's choice chose
+right 88%, silently wrong 3%, unsure 8%. Vector scores cannot tell "not in the documents" from
+a weak match (unanswerable questions scored 0.52-0.74, real matches 0.51-0.80), so "nothing
+fits" is decided by the model, not a threshold. Descriptions the model writes are shorter and
+route worse than hand-written ones (69% vs 86% on cards alone), so the model's choice, not the
+raw vector, makes the final call.
+
+Vectors come from a separate **embedder** container (`nomic-embed-text`, Apache 2.0, 137M
+parameters; `compose.ai.yaml`). It has no secrets, no egress and read-only weights, and only the
+backend can reach it; the chat model cannot. A background worker in the backend fills in
+passage vectors and extractive cards for published documents (existing ones are backfilled on
+start), and the orchestrator adds model-written descriptions when idle (`card-lease`). A document
+could try to describe itself favourably through prompt injection; cards only shortlist, and the
+final answer still cites real passages. Without the embedder everything falls back to the word
+search below. To install the model once: run an Ollama container with
+`OLLAMA_MODELS=/models/models` on the `ai_models` volume and `ollama pull nomic-embed-text`.
+
+## Chat
+
+The **Chat** tab (per project) is a conversation with memory. Each chat is private to its
+owner, saved until deleted, and limited to 200 turns. A turn is a question plus the AI
+task that answers it, so every turn is retrieved, authorized and validated exactly like
+a one-off question (below). What the thread adds:
+
+- **Follow-ups:** a question that says "he/she/they" keeps the chat's settled document but is searched
+  on its own words. Only a question with almost nothing to search for ("what about it?", "who signed
+  it?") borrows the previous question's words, and only then are the last two exchanges (questions at
+  most 300 characters, answers at most 600) sent to the model as context; replaying the previous answer
+  for complete questions made phi4-mini repeat it.
+- **Latency budget:** evidence sent to the model is capped (`AI_EVIDENCE_CHARS`, default
+  2500 characters, at least one passage) because reading evidence dominates CPU time
+  (about 15 s per 1000 characters with phi4-mini on the 4-core development CPU).
+  Identical passages (the same file uploaded twice) are sent once, and passages reach the
+  model in retrieval-rank order (`ai_sources.rank`).
+- **Retrieval for follow-ups:** the new question is searched on its own words first; the
+  previous question is borrowed only when the new one uses a pronoun ("it", "that") or has
+  almost no searchable words, so earlier passages cannot crowd out the new answer.
+- **History policy:** history is rechecked on every read. Losing project access hides the
+  chat (404); if an answer cites a document you can no longer read, the answer is redacted
+  and not replayed to the model. Deleting a chat deletes its turns, tasks and sources.
+- **One answer at a time** per chat; unfinished turns that expire report `TASK_EXPIRED`.
+
+API: `POST /api/v1/projects/{id}/chat/threads`, `GET .../chat/threads`,
+`GET|PATCH|DELETE /api/v1/chat/threads/{id}`, `POST /api/v1/chat/threads/{id}/messages`.
 
 ## AI question tasks (scaffold, no model installed)
 

@@ -50,10 +50,21 @@ def main() -> None:
                 raise ValueError("Approval target hash mismatch")
             chunks = 0
             for row in connection.execute(
-                text("""SELECT c.*,v.blob_key,v.sha256,v.size
-                FROM text_chunks c JOIN document_versions v ON v.id=c.version_id""")
+                text("""SELECT c.*,v.blob_key,v.sha256,v.size,v.mime_type,t.text AS derived
+                FROM text_chunks c JOIN document_versions v ON v.id=c.version_id
+                LEFT JOIN version_texts t ON t.version_id=v.id""")
             ).mappings():
-                source = storage.get(row["blob_key"], row["sha256"], row["size"]).decode("utf-8")
+                if row["mime_type"] == "application/pdf":
+                    # Derived text is restored from the database; the original PDF must
+                    # still verify, and chunks must match the stored derived text.
+                    storage.get(row["blob_key"], row["sha256"], row["size"])
+                    if row["derived"] is None:
+                        raise ValueError("Restored PDF chunk has no derived text")
+                    source = row["derived"]
+                else:
+                    source = storage.get(row["blob_key"], row["sha256"], row["size"]).decode(
+                        "utf-8"
+                    )
                 if row["content"] != source[row["start_offset"] : row["end_offset"]]:
                     raise ValueError("Restored chunk provenance mismatch")
                 chunks += 1

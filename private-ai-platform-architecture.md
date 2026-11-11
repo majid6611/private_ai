@@ -381,7 +381,7 @@ restricted document access, immutable versions, human approval/publication/rollb
 local React UI and isolated text ingestion with lexical search are implemented.
 See [implementation status](docs/implementation-status.md) for verified behavior,
 review fixes and remaining release gates, and [README](README.md) for commands.
-A read-only AI task scaffold (delegated tasks, orchestrator, citation validation) exists without a model service. Model inference, vector retrieval, PDF processing and release hardening remain pending; the architecture above
+A read-only AI task scaffold (delegated tasks, orchestrator, citation validation) exists without a model service. Text-based PDF intake with isolated extraction exists (scanned PDFs are flagged, not read). Model inference, vector retrieval, OCR and release hardening remain pending; the architecture above
 is a target contract, not a claim that all controls are already implemented.
 
 

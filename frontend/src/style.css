@@ -661,3 +661,343 @@ pre {
   width: 100%;
   font-size: 11px;
 }
+
+.pdf-card {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid #d9e3d3;
+  border-radius: 10px;
+  background: #f5f8f1;
+  font-size: 12px;
+}
+.pdf-card strong {
+  margin-right: 8px;
+}
+.pdf-card p {
+  margin: 8px 0 12px;
+}
+.pdf-card input[type="file"] {
+  display: block;
+  margin-top: 6px;
+}
+.pdf-review {
+  margin: 16px 0;
+}
+
+.inbox {
+  margin-bottom: 24px;
+  padding: 20px 22px;
+  border: 1px solid #c9dcc0;
+  border-radius: 12px;
+  background: #f1f7ec;
+}
+.inbox .section-title {
+  margin-bottom: 8px;
+}
+.inbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid #dbe7d3;
+  font-size: 12px;
+}
+.inbox-item small {
+  margin-top: 2px;
+}
+.draft-hint {
+  margin: 10px 0 0;
+}
+
+.ask-warning {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fff0d7;
+  color: #795621;
+  font-size: 11px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.tab {
+  padding: 8px 18px;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #4c6355;
+  border: 1px solid transparent;
+  font-size: 13px;
+}
+.tab.active {
+  background: white;
+  border-color: #d9e3d3;
+  border-bottom-color: white;
+  color: #203a32;
+  font-weight: bold;
+}
+.chat {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+  /* fill the screen: the log scrolls inside, the message box stays in view */
+  height: calc(100vh - 210px);
+  min-height: 560px;
+}
+.chat-threads {
+  background: white;
+  border: 1px solid #e0e6db;
+  border-radius: 12px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+.chat-new {
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.chat-thread {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+.chat-thread.current {
+  background: #e8f0e1;
+}
+.chat-thread-open {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  background: transparent;
+  color: #294434;
+  font-size: 12px;
+  padding: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-icon {
+  background: transparent;
+  color: #78906c;
+  font-size: 14px;
+  padding: 4px 6px;
+}
+.chat-icon:hover {
+  color: #a33;
+}
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid #e0e6db;
+  border-radius: 12px;
+  padding: 20px 24px 14px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+.chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 16px;
+}
+.chat-empty {
+  text-align: center;
+  padding: 80px 24px;
+}
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.bubble {
+  max-width: min(78%, 780px);
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.bubble.user {
+  align-self: flex-end;
+  background: #1d5039;
+  color: white;
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+.bubble.assistant {
+  align-self: flex-start;
+  background: #f3f7ef;
+  color: #203a32;
+  border-bottom-left-radius: 4px;
+}
+.bubble p {
+  margin: 0 0 8px;
+}
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+.chat-thinking small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+}
+.dots::after {
+  content: "";
+  animation: dots 1.4s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75% { content: "..."; }
+}
+.chat-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chat-source {
+  background: white;
+  border: 1px solid #cfdcc7;
+  color: #2f5a3e;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-source:hover {
+  background: #e5eedc;
+}
+.chat-composer {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  border-top: 1px solid #e0e6db;
+  padding-top: 12px;
+}
+.chat-composer textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 76px;
+  max-height: 220px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.chat-composer button {
+  height: 48px;
+  padding: 0 28px;
+  font-size: 14px;
+}
+.chat-note {
+  margin-top: 8px;
+  font-size: 10px;
+}
+@media (max-width: 760px) {
+  .chat {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .chat-threads {
+    height: auto;
+    max-height: 180px;
+  }
+  .chat-main {
+    height: 78vh;
+  }
+  .bubble {
+    max-width: 94%;
+  }
+}
+
+/* In the Chat tab the page chrome gets out of the way so the conversation fills the screen. */
+.chat-mode {
+  padding-top: 20px;
+  padding-bottom: 16px;
+}
+.chat-mode header {
+  margin-bottom: 4px;
+}
+.chat-mode header h1 {
+  font-size: 22px;
+  margin: 0;
+}
+.chat-mode header p,
+.chat-mode .admin {
+  display: none;
+}
+.chat-mode .chat {
+  height: calc(100vh - 175px);
+  min-height: 520px;
+}
+/* Keep thread titles readable when hovered or focused (the global button style turns them dark). */
+.chat-thread-open:hover,
+.chat-thread-open:focus,
+.chat-thread-open:focus-visible {
+  background: #dce8d3;
+  color: #203a32;
+  outline: none;
+}
+.chat-icon:hover,
+.chat-icon:focus {
+  background: transparent;
+}
+
+.chat-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.chat-choice {
+  background: white;
+  color: #1d5039;
+  border: 1px solid #1d5039;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+.chat-choice:hover:not(:disabled) {
+  background: #1d5039;
+  color: white;
+}
+.chat-focus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #5c6f60;
+  flex-wrap: wrap;
+}
+.chat-focus-chip {
+  background: #e8f0e1;
+  color: #203a32;
+  padding: 3px 10px;
+  border-radius: 999px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-focus-clear {
+  background: transparent;
+  color: #78906c;
+  font-size: 15px;
+  padding: 0 6px;
+}
+.chat-focus-clear:hover {
+  color: #a33;
+  background: transparent;
+}

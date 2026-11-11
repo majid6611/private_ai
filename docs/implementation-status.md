@@ -55,6 +55,59 @@ Verification:
 - Frontend/backend updates use Docker DNS resolution at ingress; the web health check
   covers backend readiness, not merely serving the static login page.
 
+PDF support added 2026-11-09 (migration 0008): isolated extraction with resource-limited
+child process (14 parser tests incl. decompression bomb, cyclic page tree, 301 pages,
+garbage/truncated/oversized input, plus HTTP-level tests), backend validation of untrusted
+extraction output with page ranges computed server-side, inert PDF downloads, approver
+access to the exact candidate, UI PDF card/review/page-numbered citations, restore
+verification of derived text, and a scripted browser run of upload -> review -> approve
+-> publish -> indexed -> search -> ask. 48 backend tests passed.
+
+Chat added 2026-11-10 (migration 0010): private threads with follow-up retrieval,
+bounded history, evidence budget, redaction on lost access and real deletion; Chat tab with
+thread list, citations that open the PDF page, and a thinking indicator. The old
+single-question box was replaced. A 1.5B CPU model needs roughly 40-70 s per answer on the
+development host; chat quality with a model this small is unproven.
+
+phi4-mini evaluation 2026-11-10 (52 cases, top-5 passages): 33/40 correct (82.5%), citations
+include the true passage 36/40 (90%), 3/10 no-answer questions declined (4 more were valid
+declines recorded as errors because an empty citation list was rejected; fixed: an empty list is
+now a decline), 0 fabricated figures, latency p50 61 s / p95 116 s. FAILS the gates (correct
+90%, citations 95%, decline 9/10); runs only in the labelled unevaluated test mode. Speed is
+dominated by reading evidence (about 15 s per 1000 characters).
+
+Model-assisted routing 2026-11-10 (migration 0014): a ROUTING stage before answering, model-
+written document descriptions, allow-listed choice, "unsure" asks the user. Live latency on the
+development host: routing 17-20 s, answer 32 s (1.7k chars) to 68 s (4.1k chars, list question).
+Follow-ups in a settled chat skip routing. Known gaps: list questions can miss items; the first
+question of a chat costs about 50-90 s.
+
+Document routing 2026-11-10 (migration 0013): cards + vectors (embedder service), routing before
+retrieval, clarifying questions, "not found" without a model call, per-chat document focus,
+hybrid passage search inside the chosen document, larger evidence for "list all" questions.
+Motivation: "send me all companions he worked. just companies name" was answered with the two
+parties of a contract, because no word of the question occurs in the resume and the contract
+shared "send"/"work". Cards are extractive (title, opening, headings), not model-written
+summaries yet. Thresholds (`ROUTE_MIN_SCORE`, `ROUTE_MARGIN`) must be calibrated against the
+real embedder; unit tests use a controllable fake embedder.
+
+Forgiving retrieval 2026-11-10 (migration 0012): stemmed English search plus trigram typo
+tolerance for both search and AI questions. Found via a real failure: "what programing
+langues he knows?" returned no passages because the resume says "languages". Retrieval
+benchmark with 10 added misspelled questions: typo cases 10/10, overall recall@5 50/52
+(96%), recall@3 92%, recall@1 75%; the original 42 questions unchanged at 40/42. No-answer
+questions still retrieve passages (declining is the model's job and is weak).
+Synonyms need embeddings.
+
+Model evaluation 2026-11-10 (qwen2.5:1.5b via Ollama, CPU, 52 synthetic cases, top-5
+passages): 27/40 correct (68%), citations include the true passage 34/40 (85%), only 2/10
+no-answer questions declined (it invents answers such as a parking-space count), 1 answer
+with a fabricated figure, 1 invalid-citation failure, latency p50 22.6 s / p95 35.2 s. It
+FAILS every gate except the minimum case count, so it runs only in the labelled
+unevaluated test mode. In chat it also tends to repeat its previous answer when the same
+passage holds several dates; extract-then-verify prompting (verbatim quote check) caught
+its invented answers in a small trial but has not been built or evaluated.
+
 Hardening added 2026-11-01: password change and admin reset with tests; project-member
 picker for document grants; orchestrator injection/boundary tests (`orchestrator/
 test_generate.py`: no model call without a passed evaluation record, foreign or
@@ -80,7 +133,11 @@ Limits / remaining work:
   Safari and a full visual review have not been done.
 - Model inference, embeddings/pgvector, hybrid RAG, meeting transcription and model
   benchmarks are not implemented (only the AI task scaffold above). Text search is explicitly labeled, not simulated AI.
-- PDF stays quarantined. PDF parser/malware workflow, DOCX and OCR remain pending.
+- PDF: text-based PDFs are reviewed, published and indexed (see README, PDF support);
+  scanned PDFs are flagged `NEEDS_OCR` but not read. No malware scanning, no DOCX, no OCR.
+  Extracted text is untrusted derived data from the isolated parser; a compromised
+  parser could misstate a PDF's content, and citations should be checked against the
+  original.
 - Current host has about 7.1 GiB RAM, nearly full swap and no registered NVIDIA
   runtime; no weaker model was silently installed. See local-hardware.md.
 - Coordinated backups currently stay on the host and are not encrypted. Off-host

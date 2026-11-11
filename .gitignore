@@ -10,3 +10,4 @@ __pycache__/
 .backups/
 frontend/node_modules/
 frontend/dist/
+models/

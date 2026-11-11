@@ -15,7 +15,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 docker compose --profile test rm -sf test-migrate test-db >&2
 fixture_container=$(docker compose --profile test run -d tests sh -c '
-python -m pytest -q tests/test_approvals.py::test_rollback_keeps_history_and_blocks_aba_stale_approval tests/test_ingestion.py::test_ingestion_identity_chunks_and_revocation_filtered_search > /tmp/recovery-test-results 2>&1
+python -m pytest -q tests/test_approvals.py::test_rollback_keeps_history_and_blocks_aba_stale_approval tests/test_ingestion.py::test_ingestion_identity_chunks_and_revocation_filtered_search tests/test_pdf.py::test_pdf_lease_complete_stores_derived_text_pages_and_search > /tmp/recovery-test-results 2>&1
 result=$?
 printf "%s" "$result" > /tmp/recovery-test-exit
 sleep 600

@@ -1,0 +1,99 @@
+# Optional local model, layered on compose.yaml:
+#   docker compose -f compose.yaml -f compose.ai.yaml --profile ai up -d --wait
+# The document core runs without it. The model has no egress (internal network), no
+# secrets, read-only weights, and is reachable only by the orchestrator.
+services:
+  model:
+    image: ollama/ollama@sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d
+    profiles: [ai]
+    user: "10002:10002"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODELS: /models/models
+      HOME: /tmp/ollama
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NOPRUNE: "1"
+    volumes:
+      - type: volume
+        source: ai_models
+        target: /models
+        read_only: true
+    tmpfs: ["/tmp:size=64m,uid=10002,gid=10002"]
+    networks: [inference]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 4g
+    cpus: 4.0
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  embedder:
+    # Turns text into vectors for meaning-based search. Separate from the chat model, secret-free,
+    # no egress, read-only weights; only the backend can reach it (the chat model cannot).
+    image: ollama/ollama@sha256:2c9595c555fd70a28363489ac03bd5bf9e7c5bdf2890373c3a830ffd7252ce6d
+    profiles: [ai]
+    user: "10002:10002"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODELS: /models/models
+      HOME: /tmp/ollama
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NOPRUNE: "1"
+    volumes:
+      - type: volume
+        source: ai_models
+        target: /models
+        read_only: true
+    tmpfs: ["/tmp:size=64m,uid=10002,gid=10002"]
+    networks: [embedding]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, ollama, list]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  backend:
+    environment:
+      AI_CONTEXT_CHUNKS: ${AI_CONTEXT_CHUNKS:-5}
+      EMBEDDER_URL: http://embedder:11434
+      EMBED_MODEL: nomic-embed-text
+    networks: [embedding]
+    depends_on:
+      embedder: {condition: service_healthy}
+  orchestrator:
+    profiles: [ai]
+    environment:
+      MODEL_ID: ${MODEL_ID:-phi4-mini}
+      MODEL_URL: http://model:11434/v1/chat/completions
+      MODEL_EVALUATION_FILE: /run/model/evaluation.json
+      # Set to 1 only for local testing: answers are then labelled as an unevaluated model.
+      UNEVALUATED_TEST_MODEL: ${UNEVALUATED_TEST_MODEL:-0}
+    volumes:
+      - type: bind
+        source: ./models/evaluation.json
+        target: /run/model/evaluation.json
+        read_only: true
+    depends_on:
+      model: {condition: service_healthy}
+  tests:
+    # Lets the retrieval evaluation reach the real embedder (docker compose ... run tests).
+    networks: [embedding]
+volumes:
+  ai_models:
+    external: true
+networks:
+  embedding:
+    internal: true

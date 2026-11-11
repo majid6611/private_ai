@@ -54,7 +54,14 @@ for name, network in networks.items():
 
 # Model-facing orchestrator: its own key only, no storage, no DB network.
 check(secrets_of("orchestrator") == {"orchestrator_key"}, "orchestrator secrets are not exactly its key")
-check(not volumes_of("orchestrator"), "orchestrator mounts a volume")
+# Its only mount is the read-only evaluation record (compose.ai.yaml), nothing with documents.
+for volume in volumes_of("orchestrator"):
+    check(
+        volume.get("type") == "bind"
+        and volume.get("read_only") is True
+        and str(volume.get("target")) == "/run/model/evaluation.json",
+        "orchestrator mounts something other than the read-only evaluation record",
+    )
 check(nets_of("orchestrator") <= {"ai_control", "inference"}, "orchestrator reaches a non-AI network")
 check("data" not in nets_of("orchestrator"), "orchestrator can reach the database network")
 
@@ -81,6 +88,46 @@ for name in services:
         if volume.get("source") == "document_data":
             check(name == "backend", f"{name} mounts the document volume")
             check(not volume.get("read_only"), "backend document volume is read-only (unexpected)")
+
+# Local model (only present with compose.ai.yaml): weights read-only, no secrets, no ports,
+# reachable only on the internal inference network, with a hard memory cap.
+if "model" in services:
+    model = services["model"]
+    check(not secrets_of("model"), "model holds secrets")
+    check(not model.get("ports"), "model publishes a port")
+    check(nets_of("model") == {"inference"}, "model is not on exactly the inference network")
+    check(bool(model.get("mem_limit")), "model has no memory limit")
+    check(model.get("user") not in (None, "", "0", "root", "0:0"), "model runs as root")
+    for volume in volumes_of("model"):
+        check(
+            volume.get("source") == "ai_models" and volume.get("read_only") is True,
+            "model mounts something other than read-only weights",
+        )
+    check("data" not in nets_of("model") and "ai_control" not in nets_of("model"),
+          "model can reach the database or backend networks")
+
+# Embedder (only with compose.ai.yaml): a separate vector service. No secrets, no ports, read-only
+# weights, its own internal network shared only with the backend. The chat model cannot reach it.
+if "embedder" in services:
+    embedder = services["embedder"]
+    check(not secrets_of("embedder"), "embedder holds secrets")
+    check(not embedder.get("ports"), "embedder publishes a port")
+    check(nets_of("embedder") == {"embedding"}, "embedder is not on exactly the embedding network")
+    check(bool(embedder.get("mem_limit")), "embedder has no memory limit")
+    check(embedder.get("user") not in (None, "", "0", "root", "0:0"), "embedder runs as root")
+    for volume in volumes_of("embedder"):
+        check(
+            volume.get("source") == "ai_models" and volume.get("read_only") is True,
+            "embedder mounts something other than read-only weights",
+        )
+    for name in services:
+        if "embedding" in nets_of(name):
+            check(
+                name in ("embedder", "backend", "tests"),
+                f"{name} can reach the embedder network",
+            )
+    check("embedding" not in nets_of("model"), "the chat model can reach the embedder")
+    check("embedding" not in nets_of("orchestrator"), "the orchestrator can reach the embedder")
 
 # Web ingress holds no secrets and no storage.
 check(not secrets_of("web") and not volumes_of("web"), "web ingress holds secrets or volumes")

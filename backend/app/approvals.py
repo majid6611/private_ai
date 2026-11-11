@@ -1,12 +1,12 @@
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import Field
 from sqlalchemy import Connection, text
 
 from app.access import Access, Actor, audit
-from app.documents import document_access
+from app.documents import attachment, document_access, project_access
 from app.identity import Input
 from app.storage import BlobStore
 
@@ -72,8 +72,8 @@ def approvals_router(access: Access, storage: BlobStore) -> APIRouter:
         )
         if row is None:
             raise HTTPException(404, "Version not found")
-        if row["mime_type"] != "text/plain":
-            raise HTTPException(409, "Only validated text versions can be reviewed/published")
+        if row["mime_type"] not in ("text/plain", "application/pdf"):
+            raise HTTPException(409, "Only validated text or PDF versions can be reviewed/published")
         try:
             storage.get(row["blob_key"], row["sha256"], row["size"])
         except OSError:
@@ -173,6 +173,57 @@ def approvals_router(access: Access, storage: BlobStore) -> APIRouter:
         audit(connection, human.id, "approval_requested", approval_id)
         return {"id": str(approval_id), "candidate_sha256": version["sha256"]}
 
+    @router.get("/projects/{project_id}/approvals/pending")
+    def pending_for_me(
+        project_id: UUID, connection: DB, human: Human
+    ) -> list[dict[str, str]]:
+        """Requests this person could review right now: approver, independent, shared, unexpired."""
+        membership = project_access(connection, human, project_id)
+        if not membership["can_approve"]:
+            return []
+        rows = (
+            connection.execute(
+                text("""SELECT a.id,a.document_id,a.candidate_version_id,a.created_at,
+            d.title,u.username AS requester,v.mime_type,v.author_id
+            FROM approvals a JOIN documents d ON d.id=a.document_id
+            JOIN projects pr ON pr.id=d.project_id
+            JOIN users u ON u.id=a.requester_id
+            JOIN document_versions v ON v.id=a.candidate_version_id
+            WHERE d.project_id=:p AND a.status='PENDING' AND a.expires_at>clock_timestamp()
+            AND a.requester_id<>:me AND v.author_id<>:me
+            -- Mirror validate(): stale requests cannot be approved, so are not listed.
+            AND a.acl_revision=pr.acl_revision
+            AND a.expected_active_version_id IS NOT DISTINCT FROM d.active_version_id
+            AND a.expected_publication_revision=d.publication_revision
+            AND u.enabled AND u.auth_revision=a.requester_auth_revision
+            AND v.state<>'REJECTED'
+
+            ORDER BY a.created_at DESC LIMIT 50"""),
+                {"p": project_id, "me": human.id},
+            )
+            .mappings()
+            .all()
+        )
+        items: list[dict[str, str]] = []
+        for row in rows:
+            try:
+                # Same visibility rules as opening the document (restricted/grants).
+                approval_document(connection, human, row["document_id"], "can_approve")
+            except HTTPException:
+                continue
+            items.append(
+                {
+                    "approval_id": str(row["id"]),
+                    "document_id": str(row["document_id"]),
+                    "candidate_version_id": str(row["candidate_version_id"]),
+                    "title": row["title"],
+                    "requester": row["requester"],
+                    "kind": "pdf" if row["mime_type"] == "application/pdf" else "text",
+                    "requested_at": row["created_at"].isoformat(),
+                }
+            )
+        return items
+
     @router.get("/documents/{document_id}/approvals")
     def list_approvals(
         document_id: UUID, connection: DB, human: Human
@@ -196,19 +247,36 @@ def approvals_router(access: Access, storage: BlobStore) -> APIRouter:
         doc, request = approval(connection, human, approval_id, "can_approve")
         validate(connection, doc, request)
         version = candidate(connection, doc["id"], request["candidate_version_id"])
-        proposed = storage.get(version["blob_key"], version["sha256"], version["size"]).decode(
-            "utf-8"
-        )
+        # PDFs are reviewed in the reviewer's own viewer via /candidate; only text is inlined.
+        proposed: str | None = None
+        if version["mime_type"] == "text/plain":
+            proposed = storage.get(version["blob_key"], version["sha256"], version["size"]).decode(
+                "utf-8"
+            )
         original: str | None = None
         if doc["active_version_id"]:
             base = candidate(connection, doc["id"], doc["active_version_id"])
-            original = storage.get(base["blob_key"], base["sha256"], base["size"]).decode("utf-8")
+            if base["mime_type"] == "text/plain":
+                original = storage.get(base["blob_key"], base["sha256"], base["size"]).decode(
+                    "utf-8"
+                )
         return {
             "approval_id": str(approval_id),
             "candidate_sha256": version["sha256"],
+            "kind": "pdf" if version["mime_type"] == "application/pdf" else "text",
             "original": original,
             "proposed": proposed,
         }
+
+    @router.get("/approvals/{approval_id}/candidate")
+    def candidate_content(approval_id: UUID, connection: DB, human: Human) -> Response:
+        """The exact bytes under review, for approvers who cannot read drafts generally."""
+        doc, request = approval(connection, human, approval_id, "can_approve")
+        validate(connection, doc, request)
+        version = candidate(connection, doc["id"], request["candidate_version_id"])
+        content = storage.get(version["blob_key"], version["sha256"], version["size"])
+        audit(connection, human.id, "candidate_downloaded", approval_id)
+        return attachment(content, version["mime_type"], version["sha256"])
 
     @router.post("/approvals/{approval_id}/approve", status_code=204)
     def approve(approval_id: UUID, connection: DB, human: Human) -> None:

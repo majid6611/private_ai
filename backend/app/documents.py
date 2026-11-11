@@ -101,6 +101,23 @@ async def read_upload(request: Request, mime: str) -> bytes:
     return bytes(data)
 
 
+def attachment(content: bytes, mime: str, sha256: str) -> Response:
+    """Stored bytes are only ever served as an inert download, never rendered by origin."""
+    return Response(
+        content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": 'attachment; filename="document.'
+            + ("pdf" if mime == "application/pdf" else "txt")
+            + '"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cache-Control": "no-store",
+            "ETag": '"' + sha256 + '"',
+        },
+    )
+
+
 def documents_router(access: Access, storage: BlobStore) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
     DB = Annotated[Connection, Depends(access.transaction, scope="function")]
@@ -343,18 +360,30 @@ def documents_router(access: Access, storage: BlobStore) -> APIRouter:
         connection: DB,
         human: Human,
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    ) -> list[dict[str, str | int]]:
+    ) -> list[dict[str, str | int | None]]:
         doc = document_access(connection, human, document_id)
         if not doc["can_history"]:
             raise HTTPException(403, "History permission required")
         rows = connection.execute(
-            text("""SELECT id,sha256,size,state FROM document_versions
-            WHERE document_id=:d AND (state='PUBLISHED' OR :edit)
-            ORDER BY created_at DESC,id DESC LIMIT :limit"""),
+            text("""SELECT v.id,v.sha256,v.size,v.state,v.mime_type,
+            j.status AS index_status,j.failure_code AS index_error,t.page_count
+            FROM document_versions v LEFT JOIN intake_jobs j ON j.version_id=v.id
+            LEFT JOIN version_texts t ON t.version_id=v.id
+            WHERE v.document_id=:d AND (v.state='PUBLISHED' OR :edit)
+            ORDER BY v.created_at DESC,v.id DESC LIMIT :limit"""),
             {"d": document_id, "edit": bool(doc["can_edit"]), "limit": limit},
         ).mappings()
         return [
-            {"id": str(r["id"]), "sha256": r["sha256"], "size": r["size"], "state": r["state"]}
+            {
+                "id": str(r["id"]),
+                "sha256": r["sha256"],
+                "size": r["size"],
+                "state": r["state"],
+                "mime_type": r["mime_type"],
+                "index_status": r["index_status"],
+                "index_error": r["index_error"],
+                "page_count": r["page_count"],
+            }
             for r in rows
         ]
 
@@ -385,23 +414,12 @@ def documents_router(access: Access, storage: BlobStore) -> APIRouter:
             and not doc["can_history"]
         ):
             raise HTTPException(403, "History permission required")
-        if row["mime_type"] == "application/pdf":
-            raise HTTPException(409, "PDF is quarantined pending isolated intake validation")
         try:
             content = storage.get(row["blob_key"], row["sha256"], row["size"])
         except OSError:
             raise HTTPException(503, "Document storage unavailable") from None
         audit(connection, human.id, "document_downloaded", document_id)
-        return Response(
-            content,
-            media_type=row["mime_type"],
-            headers={
-                "Content-Disposition": 'attachment; filename="document.txt"',
-                "X-Content-Type-Options": "nosniff",
-                "Cache-Control": "no-store",
-                "ETag": '"' + row["sha256"] + '"',
-            },
-        )
+        return attachment(content, row["mime_type"], row["sha256"])
 
     def require_owner(connection: Connection, human: Actor, document_id: UUID) -> dict[str, Any]:
         doc = document_access(connection, human, document_id, edit=True)

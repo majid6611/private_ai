@@ -238,8 +238,69 @@ HARD: list[Question] = [
 ]
 
 
+# The same facts asked the way people really type: misspellings and wrong word forms.
+TYPO: list[Question] = [
+    Question("How many days of anual leav do full-time employes get?", "employee_handbook", "22 days of paid annual leave per calendar year", "typo"),
+    Question("What is the pasword minimun lenght?", "security_policy", "at least 14 characters", "typo"),
+    Question("How long are databse backups retaned?", "security_policy", "retained for 35 days", "typo"),
+    Question("Wich courts hear dispites under the services agrement?", "services_agreement", "courts sitting in Toronto", "typo"),
+    Question("What is the late delivry penelty for the goods?", "purchase_order", "0.5 percent of the order value applies for each full week of delay", "typo"),
+    Question("How much is the aproved budgit for the migrashun project?", "project_plan", "approved budget is CAD 412,000", "typo"),
+    Question("How long do confidential obligatons last under the NDA?", "nda", "last for five years from the date of the last disclosure", "typo"),
+    Question("How many weaks of parential leave for birth parrents?", "employee_handbook", "Birth parents receive 20 weeks", "typo"),
+    Question("What warrenty do accepted goods carry?", "purchase_order", "24 month warranty against defects", "typo"),
+    Question("Who aproves vendor contracts abov CAD 150,000?", "vendor_policy", "Anything above CAD 150,000 requires the CFO", "typo"),
+]
+
+
 def question_text(q: Question) -> str:
     """Direct/paraphrase questions get an anchor; hard ones already name their parties."""
     if q.kind == "hard":
         return q.text
     return f"{q.text.rstrip('?')} in the {ANCHORS[q.document]}?"
+
+
+# Key fact(s) a correct answer must contain, keyed by the question's evidence string.
+# "a|b" accepts either wording. Used to score model answers, never shown to the model.
+FACTS: dict[str, str] = {
+    "fixed implementation fee of USD 184,500": "184,500",
+    "payable within 45 days of receipt": "45",
+    "at least 90 days before the end of the term": "90",
+    "capped at the fees paid in the twelve months preceding the claim": "twelve|12",
+    "courts sitting in Toronto": "toronto",
+    "99.5 percent monthly availability": "99.5",
+    "last for five years from the date of the last disclosure": "five|5",
+    "Within 15 business days after a written request": "15",
+    "give the discloser prompt written notice": "notice",
+    "For twelve months after the date of this agreement": "twelve|12",
+    "evaluate a possible acquisition of Cedar Ridge's data platform division": "acquisition",
+    "22 days of paid annual leave per calendar year": "22",
+    "Birth parents receive 20 weeks of paid parental leave": "20",
+    "must be in the office on Tuesdays": "tuesday",
+    "more than three consecutive working days": "three|3",
+    "annual learning budget of CAD 1,200": "1,200",
+    "probation period of three months": "three|3",
+    "at least 14 characters": "14",
+    "retained for 35 days": "35",
+    "within one hour of discovery": "one hour|1 hour|an hour|60 minutes",
+    "encrypted with AES-256": "aes-256|aes 256",
+    "Critical vulnerabilities must be patched within 7 days": "7|seven",
+    "order total before tax is CAD 46,260.00": "46,260",
+    "0.5 percent of the order value applies for each full week of delay": "0.5",
+    "24 month warranty against defects": "24",
+    "A 2 percent discount applies if payment is made within 10 days": "2 percent|2%|2 per",
+    "approved budget is CAD 412,000": "412,000",
+    "The project manager is Dana Okafor": "dana okafor",
+    "production cutover is planned for the weekend of 9 May": "9 may",
+    "Anything above CAD 150,000 requires the CFO": "cfo",
+    "Birth parents receive 20 weeks": "20",
+    "may work remotely up to three days per week": "three|3",
+    "above CAD 500 requires written approval": "500",
+    "Passwords are not rotated on a schedule": "compromise|not rotated|schedule",
+    "within 72 hours of confirming a breach": "72",
+    "A penalty of 0.5 percent of the order value": "0.5",
+    "contingency reserve of 12 percent": "12",
+    "renews automatically for successive 12 month periods": "12|automatic",
+    "Within 15 business days after a written request ": "15",
+    "neither party will solicit for employment": "not|cannot|neither",
+}

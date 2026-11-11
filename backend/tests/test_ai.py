@@ -162,3 +162,32 @@ def test_logout_revokes_task_before_model_context(workspace: Workspace) -> None:
             ).scalar()
             == "FAILED"
         )
+
+
+def test_answer_records_which_model_and_whether_it_was_evaluated(workspace: Workspace) -> None:
+    w = workspace
+    p, _ = prepare(w)
+    task_id = ask(w, p)
+    task = w.client.post("/internal/v1/ai/lease", headers=service()).json()["task"]
+    path = f"/internal/v1/ai/tasks/{task_id}/complete"
+    base = {"lease_token": task["lease_token"], "answer": "ok", "citation_ids": [task["sources"][0]["id"]]}
+    assert w.client.post(path, headers=service(), json={**base, "model_id": "bad id!"}).status_code == 422
+    assert w.client.post(path, headers=service(), json={**base, "model_id": "qwen2.5:1.5b", "evaluated": False}).status_code == 204
+    shown = w.client.get(f"/api/v1/ai/tasks/{task_id}", headers=w.user_headers).json()
+    assert shown["model"] == {"id": "qwen2.5:1.5b", "evaluated": False}
+
+
+def test_a_decline_completes_with_a_fixed_message_and_no_citations(workspace: Workspace) -> None:
+    w = workspace
+    p, _ = prepare(w)
+    task_id = ask(w, p)
+    task = w.client.post("/internal/v1/ai/lease", headers=service()).json()["task"]
+    path = f"/internal/v1/ai/tasks/{task_id}/complete"
+    lease = task["lease_token"]
+    # A decline must not smuggle citations or an error code.
+    assert w.client.post(path, headers=service(), json={"lease_token": lease, "answer": "", "citation_ids": [task["sources"][0]["id"]], "declined": True}).status_code == 422
+    done = w.client.post(path, headers=service(), json={"lease_token": lease, "answer": "uncited model text", "citation_ids": [], "declined": True, "model_id": "m", "evaluated": False})
+    assert done.status_code == 204
+    shown = w.client.get(f"/api/v1/ai/tasks/{task_id}", headers=w.user_headers).json()
+    assert shown["status"] == "COMPLETED" and shown["sources"] == []
+    assert shown["answer"].startswith("I looked through the relevant documents")  # never the model's own words

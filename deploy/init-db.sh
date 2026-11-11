@@ -11,6 +11,8 @@ CREATE USER workspace_migration PASSWORD :'migration_password';
 CREATE SCHEMA workspace AUTHORIZATION workspace_migration;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA workspace TO workspace_app;
+-- The migration role installs pg_trgm (trusted extension) for forgiving search.
+SELECT format('GRANT CREATE ON DATABASE %I TO workspace_migration', current_database()) \gexec
 ALTER DEFAULT PRIVILEGES FOR ROLE workspace_migration IN SCHEMA workspace
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO workspace_app;
 SQL

@@ -1,5 +1,6 @@
 """Retrieval quality gate (recall@5) on the synthetic corpus in tests/eval/corpus.py."""
 
+import json
 import os
 from uuid import UUID
 
@@ -7,7 +8,7 @@ import pytest
 from sqlalchemy import text
 
 from app.ai import retrieve
-from tests.eval.corpus import ANSWERABLE, DOCS, HARD, NO_ANSWER, TITLES, question_text
+from tests.eval.corpus import ANSWERABLE, DOCS, FACTS, HARD, NO_ANSWER, TITLES, TYPO, question_text
 from tests.eval.distractors import distractors
 from tests.support import Workspace
 from tests.test_approvals import approve, publish, request, setup
@@ -73,11 +74,11 @@ def test_retrieval_recall_at_k(workspace: Workspace, capsys: pytest.CaptureFixtu
     w = workspace
     p = publish_corpus(w)
     user = UUID(w.user_id)
-    hits = {"direct": [0, 0], "paraphrase": [0, 0], "hard": [0, 0]}
+    hits = {"direct": [0, 0], "paraphrase": [0, 0], "hard": [0, 0], "typo": [0, 0]}
     at = {1: 0, 3: 0}
     misses: list[str] = []
     with w.engine.begin() as connection:
-        for q in ANSWERABLE + HARD:
+        for q in ANSWERABLE + HARD + TYPO:
             rows = retrieve(connection, UUID(p), user, question_text(q), K)
             rank = next((i for i, r in enumerate(rows, 1) if q.evidence in r["content"]), None)
             for cutoff in at:
@@ -88,6 +89,39 @@ def test_retrieval_recall_at_k(workspace: Workspace, capsys: pytest.CaptureFixtu
             if not found:
                 misses.append(f"[{q.kind}] {question_text(q)}")
         no_answer_with_hits = sum(bool(retrieve(connection, UUID(p), user, q, K)) for q in NO_ANSWER)
+    export = os.environ.get("RETRIEVAL_EXPORT")
+    if export:
+        # What the app would hand the model, for the generation evaluator.
+        export_limit = int(os.environ.get("RETRIEVAL_EXPORT_LIMIT", "8"))
+        cases = []
+        with w.engine.begin() as connection:
+            for q in ANSWERABLE + HARD:
+                rows = retrieve(connection, UUID(p), user, question_text(q), export_limit)
+                cases.append(
+                    {
+                        "question": question_text(q),
+                        "kind": q.kind,
+                        "answerable": True,
+                        "fact": FACTS.get(q.evidence, ""),
+                        "sources": [
+                            {"id": str(r["id"]), "text": r["content"], "gold": q.evidence in r["content"]}
+                            for r in rows
+                        ],
+                    }
+                )
+            for question in NO_ANSWER:
+                rows = retrieve(connection, UUID(p), user, question, export_limit)
+                cases.append(
+                    {
+                        "question": question,
+                        "kind": "no_answer",
+                        "answerable": False,
+                        "fact": "",
+                        "sources": [{"id": str(r["id"]), "text": r["content"], "gold": False} for r in rows],
+                    }
+                )
+        with open(export, "w") as handle:
+            json.dump(cases, handle)
     total = sum(v[0] for v in hits.values())
     count = sum(v[1] for v in hits.values())
     recall = total / count

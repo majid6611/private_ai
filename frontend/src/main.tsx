@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { createRoot } from "react-dom/client";
+import { Chat } from "./Chat";
+import { location } from "./shared";
 import "./style.css";
 
 type User = { id: string; username: string; is_admin: boolean };
@@ -14,7 +16,16 @@ type Meta = {
   owner_id: string;
   restricted: boolean;
 };
-type Version = { id: string; state: string; sha256: string; size: number };
+type Version = {
+  id: string;
+  state: string;
+  sha256: string;
+  size: number;
+  mime_type: string;
+  index_status: string | null;
+  index_error: string | null;
+  page_count: number | null;
+};
 type Approval = {
   id: string;
   candidate_version_id: string;
@@ -25,7 +36,8 @@ type Review = {
   approval_id: string;
   candidate_sha256: string;
   original: string | null;
-  proposed: string;
+  proposed: string | null;
+  kind: "text" | "pdf";
 };
 type SearchHit = {
   document_id: string;
@@ -34,32 +46,47 @@ type SearchHit = {
   snippet: string;
   start_offset: number;
   end_offset: number;
+  page_start: number | null;
+  page_end: number | null;
 };
 type Account = { id: string; username: string; enabled: boolean };
 type Member = { id: string; username: string };
-type AskSource = {
-  id: string;
+type PendingReview = {
+  approval_id: string;
   document_id: string;
+  candidate_version_id: string;
   title: string;
-  version_id: string;
-  start_offset: number;
-  end_offset: number;
+  requester: string;
+  kind: "text" | "pdf";
+  requested_at: string;
 };
-type AskTask = {
-  id: string;
-  status: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-  answer: string | null;
-  error_code: string | null;
-  sources: AskSource[];
-};
-const ASK_ERRORS: Record<string, string> = {
-  MODEL_UNAVAILABLE:
-    "No AI model is available yet, so this question could not be answered. Search still works.",
-  INVALID_OUTPUT: "The model returned an unusable answer. Please try again.",
-  TASK_EXPIRED: "The question timed out before it was answered. Ask again.",
-  AUTHORIZATION_CHANGED:
-    "Your access or the documents changed while answering. Ask again.",
-};
+function pdfStatus(v?: Version): string {
+  if (!v) return "";
+  if (v.state !== "PUBLISHED")
+    return "Text is extracted for search and questions after this version is published.";
+  switch (v.index_status) {
+    case "DONE":
+      return `Indexed for search and questions${v.page_count ? ` · ${v.page_count} pages` : ""}.`;
+    case "NEEDS_OCR":
+      return "This PDF has no text layer (it looks scanned). Reading it needs OCR, which is not available yet.";
+    case "FAILED":
+      return `This PDF could not be read (${(v.index_error ?? "unknown").toLowerCase()}).`;
+    default:
+      return "Reading the PDF… use Refresh in a few seconds.";
+  }
+}
+function showBlob(blob: Blob, download?: string) {
+  const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+  if (download) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = download;
+    link.click();
+  } else {
+    window.open(url, "_blank", "noopener");
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function App() {
   const [token, setToken] = useState("");
@@ -68,7 +95,7 @@ function App() {
   const [project, setProject] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searched, setSearched] = useState(false);
-  const [ask, setAsk] = useState<AskTask | null>(null);
+  const [view, setView] = useState<"documents" | "chat">("documents");
   const grantUser = useRef<HTMLSelectElement>(null);
   const [docs, setDocs] = useState<Item[]>([]);
   const [doc, setDoc] = useState<Meta | null>(null);
@@ -77,8 +104,10 @@ function App() {
   const [review, setReview] = useState<Review | null>(null);
   const [text, setText] = useState("");
   const [loadedVersion, setLoadedVersion] = useState<string | null>(null);
+  const [pdf, setPdf] = useState<Blob | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [inbox, setInbox] = useState<PendingReview[]>([]);
   const [message, setMessage] = useState("");
   const [ok, setOk] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -121,6 +150,7 @@ function App() {
     setApprovals([]);
     setReview(null);
     setText("");
+    setPdf(null);
     setLoadedVersion(null);
     retryUpload.current = null;
   }
@@ -133,9 +163,9 @@ function App() {
     setDocs([]);
     setAccounts([]);
     setMembers([]);
+    setInbox([]);
     setHits([]);
     setSearched(false);
-    setAsk(null);
   }
   function success(text: string) {
     setMessage(text);
@@ -162,6 +192,15 @@ function App() {
     setMembers(
       await api<Member[]>(`/projects/${p}/members`).catch(() => [] as Member[]),
     );
+    await refreshInbox(p);
+  }
+  async function refreshInbox(p = project) {
+    if (!p) return;
+    setInbox(
+      await api<PendingReview[]>(`/projects/${p}/approvals/pending`).catch(
+        () => [] as PendingReview[],
+      ),
+    );
   }
   async function openDocument(id: string, preferredVersion?: string) {
     clearDocument();
@@ -177,6 +216,7 @@ function App() {
     setDoc(meta);
     setVersions(history);
     setApprovals(requests);
+    void refreshInbox();
     const version =
       preferredVersion || meta.latest_version_id || meta.active_version_id;
     if (version) await loadText(id, version, current);
@@ -194,8 +234,18 @@ function App() {
       const body = (await response.json()) as { detail: string };
       throw new Error(body.detail);
     }
+    if (response.headers.get("content-type")?.startsWith("application/pdf")) {
+      const blob = await response.blob();
+      if (generation.current === current) {
+        setPdf(blob);
+        setText("");
+        setLoadedVersion(version);
+      }
+      return;
+    }
     const content = await response.text();
     if (generation.current === current) {
+      setPdf(null);
       setText(content);
       setLoadedVersion(version);
     }
@@ -210,35 +260,45 @@ function App() {
     return () => window.clearTimeout(expiry);
   }, [token]);
 
-  // Poll an unfinished question until it settles; the orchestrator answers asynchronously.
-  const askId = ask?.id;
-  const askOpen = ask?.status === "PENDING" || ask?.status === "RUNNING";
+  // Reviewers should see new requests without reloading.
   useEffect(() => {
-    if (!askId || !askOpen) return;
+    if (!project || !token) return;
+    const timer = window.setInterval(() => void refreshInbox(project), 10_000);
+    return () => window.clearInterval(timer);
+    // refreshInbox reads the current token; restart when the project or session changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, token]);
+
+  // A published PDF is read by the isolated parser a few seconds later; follow it to done.
+  const openId = doc?.id;
+  const pdfReading = (() => {
+    const v = versions.find((x) => x.id === loadedVersion);
+    return (
+      pdf !== null &&
+      !!v &&
+      v.state === "PUBLISHED" &&
+      v.mime_type === "application/pdf" &&
+      !["DONE", "NEEDS_OCR", "FAILED"].includes(v.index_status ?? "")
+    );
+  })();
+  useEffect(() => {
+    if (!pdfReading || !openId) return;
     let cancelled = false;
-    let timer = 0;
-    const poll = async () => {
+    const timer = window.setInterval(async () => {
       try {
-        const next = await api<AskTask>("/ai/tasks/" + askId);
-        if (cancelled) return;
-        setAsk(next);
-        if (next.status === "PENDING" || next.status === "RUNNING")
-          timer = window.setTimeout(() => void poll(), 1500);
-      } catch (e) {
-        if (cancelled) return;
-        setAsk(null);
-        setOk(false);
-        setMessage(e instanceof Error ? e.message : "Connection error");
+        const next = await api<Version[]>(`/documents/${openId}/versions`);
+        if (!cancelled) setVersions(next);
+      } catch {
+        /* keep the last known status; the user can still refresh manually */
       }
-    };
-    timer = window.setTimeout(() => void poll(), 1500);
+    }, 3000);
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearInterval(timer);
     };
-    // api() reads the current token; restart only when the task or session changes.
+    // api() reads the current token; restart only when the open document or state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [askId, askOpen, token]);
+  }, [pdfReading, openId, token]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -380,7 +440,7 @@ function App() {
             setProject(p);
             setHits([]);
             setSearched(false);
-            setAsk(null);
+            setInbox([]);
             setDocs([]);
             void task(() => refreshDocs(p));
           }}
@@ -488,7 +548,7 @@ function App() {
           </button>
         </div>
       </aside>
-      <main className="workspace">
+      <main className={"workspace" + (project && view === "chat" ? " chat-mode" : "")}>
         <header>
           <div>
             <span className="eyebrow">DOCUMENT WORKSPACE</span>
@@ -704,7 +764,72 @@ function App() {
             </div>
           </details>
         )}
-        {!project ? (
+        {project && inbox.length > 0 && (
+          <section className="inbox" aria-label="Awaiting your review">
+            <div className="section-title">
+              <h2>Awaiting your review</h2>
+              <span>{inbox.length} waiting</span>
+            </div>
+            {inbox.map((item) => (
+              <div className="inbox-item" key={item.approval_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>
+                    {item.kind === "pdf" ? "PDF" : "Text"} · requested by{" "}
+                    {item.requester} ·{" "}
+                    {new Date(item.requested_at).toLocaleString()}
+                  </small>
+                </div>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void task(async () => {
+                      await openDocument(item.document_id);
+                      setReview(
+                        await api<Review>(
+                          `/approvals/${item.approval_id}/review`,
+                        ),
+                      );
+                    })
+                  }
+                >
+                  Review
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+        {project && (
+          <nav className="tabs" aria-label="Workspace sections">
+            <button
+              className={view === "documents" ? "tab active" : "tab"}
+              onClick={() => setView("documents")}
+            >
+              Documents
+            </button>
+            <button
+              className={view === "chat" ? "tab active" : "tab"}
+              onClick={() => setView("chat")}
+            >
+              Chat
+            </button>
+          </nav>
+        )}
+        {project && view === "chat" ? (
+          <Chat
+            key={project}
+            project={project}
+            api={api}
+            onOpenSource={(documentId, versionId) => {
+              setView("documents");
+              void task(() => openDocument(documentId, versionId));
+            }}
+            onError={(m) => {
+              setOk(false);
+              setMessage(m);
+            }}
+          />
+        ) : !project ? (
           <section className="empty">
             <span className="empty-icon">▤</span>
             <h2>Select a project</h2>
@@ -780,85 +905,7 @@ function App() {
                       <strong>{hit.title}</strong>
                       <small>{hit.snippet}</small>
                       <span dir="ltr">
-                        {hit.version_id.slice(0, 8)} · {hit.start_offset}–
-                        {hit.end_offset}
-                      </span>
-                    </button>
-                  ))}
-                </section>
-              )}
-              <form
-                className="ask"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const f = e.currentTarget;
-                  const data = new FormData(f);
-                  setAsk(null);
-                  void task(async () => {
-                    const created = await api<{ id: string }>(
-                      "/ai/tasks",
-                      json({
-                        project_id: project,
-                        question: String(data.get("question")),
-                      }),
-                    );
-                    setAsk(await api<AskTask>("/ai/tasks/" + created.id));
-                    f.reset();
-                  });
-                }}
-              >
-                <label>
-                  Ask a question about published documents
-                  <textarea
-                    name="question"
-                    placeholder="For example: What is the payment term in the services agreement?"
-                    minLength={2}
-                    maxLength={1000}
-                    rows={2}
-                    required
-                  />
-                </label>
-                <button disabled={busy || askOpen}>
-                  {askOpen ? "Answering…" : "Ask"}
-                </button>
-                <small>
-                  Answers use only published documents you can access, with
-                  citations. AI can be wrong; check the sources.
-                </small>
-              </form>
-              {ask && (
-                <section className="ask-result" aria-live="polite">
-                  <h3>Answer</h3>
-                  {askOpen && (
-                    <p className="muted">Finding evidence and answering…</p>
-                  )}
-                  {ask.status === "COMPLETED" && (
-                    <p className="ask-answer">{ask.answer}</p>
-                  )}
-                  {ask.status === "FAILED" && (
-                    <p className="ask-failed">
-                      {ASK_ERRORS[ask.error_code ?? ""] ??
-                        "The question could not be answered."}
-                    </p>
-                  )}
-                  {ask.status === "COMPLETED" && ask.sources.length === 0 && (
-                    <p className="muted">No supporting sources.</p>
-                  )}
-                  {ask.sources.map((src) => (
-                    <button
-                      key={src.id}
-                      className="search-hit"
-                      disabled={busy}
-                      onClick={() =>
-                        void task(async () => {
-                          await openDocument(src.document_id, src.version_id);
-                        })
-                      }
-                    >
-                      <strong>{src.title}</strong>
-                      <span dir="ltr">
-                        {src.version_id.slice(0, 8)} · {src.start_offset}–
-                        {src.end_offset}
+                        {hit.version_id.slice(0, 8)} · {location(hit)}
                       </span>
                     </button>
                   ))}
@@ -885,7 +932,7 @@ function App() {
                 </label>
                 <button disabled={busy}>Upload draft</button>
                 <small>
-                  Up to 2 MiB. PDFs remain quarantined pending validation.
+                  Up to 2 MiB. PDF text is extracted after publication; scanned PDFs need OCR, which is not available yet.
                 </small>
               </form>
               <div className="doc-list">
@@ -946,6 +993,75 @@ function App() {
                       </button>
                     ))}
                   </div>
+                  {pdf && (
+                    <section className="pdf-card">
+                      <strong>PDF document</strong>
+                      <small>{Math.max(1, Math.round(pdf.size / 1024))} KB</small>
+                      <p className="muted">
+                        {pdfStatus(versions.find((v) => v.id === loadedVersion))}
+                      </p>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => showBlob(pdf)}
+                        >
+                          Open PDF
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => showBlob(pdf, "document.pdf")}
+                        >
+                          Download
+                        </button>
+                      </div>
+                      <label>
+                        Upload a new PDF version
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          disabled={
+                            busy || loadedVersion !== doc.latest_version_id
+                          }
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!file) return;
+                            void task(async () => {
+                              if (!file.size || file.size > 2097152)
+                                throw new Error(
+                                  "Choose a non-empty PDF no larger than 2 MiB.",
+                                );
+                              const signature = `${doc.id}:${doc.latest_version_id}:${file.name}:${file.size}:${file.lastModified}`;
+                              if (retryUpload.current?.signature !== signature)
+                                retryUpload.current = {
+                                  signature,
+                                  key: crypto.randomUUID(),
+                                };
+                              await api(
+                                `/documents/${doc.id}/versions?parent_version_id=${doc.latest_version_id}`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/pdf",
+                                    "Idempotency-Key": retryUpload.current!.key,
+                                  },
+                                  body: file,
+                                },
+                              );
+                              retryUpload.current = null;
+                              await openDocument(doc.id);
+                              success(
+                                "New PDF version saved. The original is preserved.",
+                              );
+                            });
+                          }}
+                        />
+                      </label>
+                    </section>
+                  )}
+                  {!pdf && (
                   <label>
                     Document text
                     <textarea
@@ -959,7 +1075,9 @@ function App() {
                       rows={16}
                     />
                   </label>
+                  )}
                   <div className="actions">
+                    {!pdf && (
                     <button
                       disabled={
                         busy ||
@@ -997,6 +1115,7 @@ function App() {
                     >
                       Save new version
                     </button>
+                    )}
                     <button
                       className="secondary"
                       disabled={
@@ -1027,6 +1146,26 @@ function App() {
                       Request approval for selected version
                     </button>
                   </div>
+                  {loadedVersion &&
+                    loadedVersion !== doc.active_version_id &&
+                    versions.find((v) => v.id === loadedVersion)?.state !==
+                      "REJECTED" &&
+                    (approvals.some(
+                      (a) =>
+                        a.candidate_version_id === loadedVersion &&
+                        (a.status === "PENDING" || a.status === "APPROVED"),
+                    ) ? (
+                      <p className="muted draft-hint">
+                        Waiting for a reviewer. Reviewers see this under
+                        “Awaiting your review” on the project page.
+                      </p>
+                    ) : (
+                      <p className="muted draft-hint">
+                        This version is a draft. Choose “Request approval for
+                        selected version” to send it to a reviewer. It is not
+                        searchable until it is published.
+                      </p>
+                    ))}
                   {doc.owner_id === user.id && doc.latest_version_id && (
                     <details className="access-panel">
                       <summary>Document access</summary>
@@ -1210,6 +1349,33 @@ function App() {
               permissions.
             </p>
             <small dir="ltr">SHA-256: {review.candidate_sha256}</small>
+            {review.kind === "pdf" ? (
+              <div className="pdf-review">
+                <p>
+                  This version is a PDF. Open the exact file under review, read
+                  it, then approve or reject. The hash above identifies it.
+                </p>
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    void task(async () => {
+                      const response = await fetch(
+                        `/api/v1/approvals/${review.approval_id}/candidate`,
+                        {
+                          headers: { Authorization: `Bearer ${token}` },
+                          cache: "no-store",
+                        },
+                      );
+                      if (!response.ok) throw new Error("Could not load the PDF.");
+                      showBlob(await response.blob());
+                    })
+                  }
+                >
+                  Open PDF under review
+                </button>
+              </div>
+            ) : (
             <div className="comparison">
               <div>
                 <h3>Active version</h3>
@@ -1222,6 +1388,7 @@ function App() {
                 <pre dir="auto">{review.proposed}</pre>
               </div>
             </div>
+            )}
             <div className="actions">
               <button
                 disabled={busy}
